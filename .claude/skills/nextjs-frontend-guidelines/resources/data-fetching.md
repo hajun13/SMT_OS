@@ -423,16 +423,16 @@ export function ClientComponent() {
 
 ### Pattern 2: Direct Fetch (Acceptable for Simple Public Endpoints)
 
-**Use direct `fetch()` with `qwarty_server_endpoint` for:**
+**Use direct `fetch()` with `little_boy_server_endpoint` for:**
 - Simple GET requests
 - Public endpoints without authentication
 - Quick prototyping
 
 ```typescript
-import { qwarty_server_endpoint } from '@/const/endpoint';
+import { little_boy_server_endpoint } from '@/const/endpoint';
 
 export default async function Page() {
-  const response = await fetch(`${qwarty_server_endpoint}/api/v1/artists/tags/`);
+  const response = await fetch(`${little_boy_server_endpoint}/api/v1/artists/tags/`);
   const tags = await response.json();
   return <TagList tags={tags} />;
 }

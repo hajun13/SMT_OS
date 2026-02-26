@@ -7,84 +7,115 @@ FastAPI routers organize your API endpoints by domain.
 ### Creating a Router
 
 ```python
-# backend/api/v1/routers/artist.py
-from fastapi import APIRouter, Depends, status, Query
+# backend/api/v1/routers/admin.py
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from backend.db.orm import get_read_session_dependency, get_write_session_dependency
-from backend.domain.artist.service import ArtistService
-from backend.dtos.artist import ArtistResponseDto, ArtistRequestDto
+from backend.domain.admin.service import AdminService
+from backend.dtos.admin import (
+    DashboardStatsResponse,
+    MemberListResponse,
+    MemberDetailResponse,
+    AdminBasicInfoUpdateRequest,
+)
+from backend.error import NotFoundError
 
 router = APIRouter(
-    prefix="/api/v1/artists",
-    tags=["artists"],  # For OpenAPI docs
+    prefix="/api/v1/admin",
+    tags=["admin"],  # For OpenAPI docs
 )
 ```
 
 ### Read Operations (GET)
 
 ```python
-@router.get("/", response_model=List[ArtistResponseDto])
-async def list_artists(
-    limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
+# Dashboard stats - parallel queries
+@router.get("/dashboard/stats", response_model=DashboardStatsResponse)
+async def get_dashboard_stats(
     session: AsyncSession = Depends(get_read_session_dependency),
 ):
-    """List all artists with pagination"""
-    service = ArtistService(session)
-    return await service.get_all_artists(limit=limit, offset=offset)
+    """Get dashboard statistics"""
+    service = AdminService(session)
+    return await service.get_dashboard_stats()
 
-@router.get("/{artist_id}", response_model=ArtistResponseDto)
-async def get_artist(
-    artist_id: str,
-    session: AsyncSession = Depends(get_read_session_dependency),
-):
-    """Get artist by ID"""
-    service = ArtistService(session)
-    return await service.get_artist(artist_id)
 
-@router.get("/search", response_model=List[ArtistResponseDto])
-async def search_artists(
-    q: str = Query(..., min_length=1),
-    limit: int = Query(default=10, le=100),
+# List with pagination and filters
+@router.get("/members", response_model=MemberListResponse)
+async def list_members(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    keyword: Optional[str] = Query(default=None, min_length=1),
+    status: Optional[str] = Query(default=None),
+    gender: Optional[str] = Query(default=None),
     session: AsyncSession = Depends(get_read_session_dependency),
 ):
-    """Search artists by keyword"""
-    service = ArtistService(session)
-    return await service.search_artists(q, limit)
+    """List members with pagination and filters"""
+    service = AdminService(session)
+    return await service.list_members(
+        page=page,
+        page_size=page_size,
+        keyword=keyword,
+        status=status,
+        gender=gender,
+    )
+
+
+# Get by ID
+@router.get("/members/{user_id}", response_model=MemberDetailResponse)
+async def get_member(
+    user_id: str,
+    session: AsyncSession = Depends(get_read_session_dependency),
+):
+    """Get member detail"""
+    service = AdminService(session)
+    try:
+        return await service.get_member_detail(user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 ```
 
-### Write Operations (POST, PUT, DELETE)
+### Write Operations (POST, PATCH, DELETE)
 
 ```python
-@router.post("/", response_model=ArtistResponseDto, status_code=status.HTTP_201_CREATED)
-async def create_artist(
-    dto: ArtistRequestDto,
+# Create
+@router.post("/consultations", response_model=ConsultationResponse, status_code=status.HTTP_201_CREATED)
+async def create_consultation(
+    dto: ConsultationCreateRequest,
     session: AsyncSession = Depends(get_write_session_dependency),
 ):
-    """Create new artist"""
-    service = ArtistService(session)
-    return await service.create_artist(dto)
+    """Schedule a consultation"""
+    service = AdminService(session)
+    return await service.create_consultation(dto)
 
-@router.put("/{artist_id}", response_model=ArtistResponseDto)
-async def update_artist(
-    artist_id: str,
-    dto: ArtistRequestDto,
-    session: AsyncSession = Depends(get_write_session_dependency),
-):
-    """Update existing artist"""
-    service = ArtistService(session)
-    return await service.update_artist(artist_id, dto)
 
-@router.delete("/{artist_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_artist(
-    artist_id: str,
+# Update (PATCH for partial updates)
+@router.patch("/members/{user_id}/basic", response_model=MemberDetailResponse)
+async def update_member_basic_info(
+    user_id: str,
+    dto: AdminBasicInfoUpdateRequest,
     session: AsyncSession = Depends(get_write_session_dependency),
 ):
-    """Delete artist"""
-    service = ArtistService(session)
-    await service.delete_artist(artist_id)
+    """Update member basic info"""
+    service = AdminService(session)
+    try:
+        return await service.update_member_basic_info(user_id, dto)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# Delete (soft delete)
+@router.delete("/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_member(
+    user_id: str,
+    session: AsyncSession = Depends(get_write_session_dependency),
+):
+    """Soft delete member"""
+    service = AdminService(session)
+    result = await service.soft_delete_member(user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Member {user_id} not found")
 ```
 
 ## Read/Write Session Split
@@ -103,20 +134,23 @@ session: AsyncSession = Depends(get_write_session_dependency)
 
 ```python
 from fastapi import Query
+from typing import Optional, List
 
-@router.get("/")
-async def list_items(
+@router.get("/members")
+async def list_members(
     # Required
-    category: str = Query(..., description="Category to filter by"),
+    status: str = Query(..., description="Status filter"),
 
     # Optional with default
-    limit: int = Query(default=10, ge=1, le=100),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
 
-    # With validation
-    search: str = Query(default=None, min_length=3, max_length=50),
+    # Optional nullable
+    keyword: Optional[str] = Query(default=None, min_length=1),
+    gender: Optional[str] = Query(default=None),
 
     # Multiple values
-    tags: List[str] = Query(default=None),
+    statuses: Optional[List[str]] = Query(default=None),
 
     session: AsyncSession = Depends(get_read_session_dependency),
 ):
@@ -126,33 +160,46 @@ async def list_items(
 ## Path Parameters
 
 ```python
-@router.get("/{artist_id}/artworks/{artwork_id}")
-async def get_artwork(
-    artist_id: str,
-    artwork_id: str,
+@router.get("/members/{user_id}/photos/{photo_id}")
+async def get_photo(
+    user_id: str,
+    photo_id: str,
     session: AsyncSession = Depends(get_read_session_dependency),
 ):
-    """Get specific artwork for an artist"""
-    service = ArtworkService(session)
-    return await service.get_artwork(artist_id, artwork_id)
+    """Get specific photo for a user"""
+    service = UserService(session)
+    return await service.get_photo(user_id, photo_id)
 ```
 
-## Request Body
+## Request Body (DTOs)
 
 ```python
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
-class CreateArtistDto(BaseModel):
-    name: str
-    bio: str
+class AdminBasicInfoUpdateRequest(BaseModel):
+    name: Optional[str] = Field(None, max_length=50)
+    status: Optional[str] = None
 
-@router.post("/")
-async def create_artist(
-    dto: CreateArtistDto,  # Automatically validates request body
+    model_config = {"extra": "forbid"}  # Reject unknown fields
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v):
+        if v is not None:
+            valid = ["pending", "approved", "rejected"]
+            if v not in valid:
+                raise ValueError(f"Invalid status: {v}")
+        return v
+
+
+@router.patch("/members/{user_id}/basic")
+async def update_member(
+    user_id: str,
+    dto: AdminBasicInfoUpdateRequest,  # Auto-validates request body
     session: AsyncSession = Depends(get_write_session_dependency),
 ):
-    service = ArtistService(session)
-    return await service.create_artist(dto)
+    service = AdminService(session)
+    return await service.update_member_basic_info(user_id, dto)
 ```
 
 ## Status Codes
@@ -175,21 +222,110 @@ if not item:
     )
 ```
 
-## Registering Routers
-
-In `backend/main.py`:
+## Public vs Admin Endpoints
 
 ```python
-from backend.api.v1.routers.artist import router as artist_router
+# backend/api/v1/routers/match.py
+
+# Public endpoint - no auth required
+@router.get("/status", response_model=MatchingWindowStatusResponse)
+async def get_matching_status():
+    """Public endpoint for matching window status"""
+    info = get_matching_window_info()
+    return MatchingWindowStatusResponse(
+        is_open=info["is_open"],
+        next_matching_date_str=info["next_matching_date_str"],
+        message=info["message"],
+    )
+
+
+# Public endpoint with phone verification
+@router.get("/my-matches", response_model=MatchCardListResponse)
+async def get_my_matches(
+    phone: str = Query(..., description="Phone number for verification"),
+    bypass_window: bool = Query(False, description="Admin bypass"),
+    session: AsyncSession = Depends(get_read_session_dependency),
+):
+    """Get match cards by phone number"""
+    # Validate phone format
+    normalized_phone = "".join(c for c in phone if c.isdigit())
+    if not re.match(r"^01[0-9]\d{7,8}$", normalized_phone):
+        raise HTTPException(status_code=400, detail="Invalid phone format")
+
+    service = MatchService(session)
+    return await service.get_match_cards_by_phone(normalized_phone, bypass_window)
+
+
+# Admin endpoint - requires authentication
+@router.get("/members/{user_id}", response_model=MemberDetailResponse)
+async def get_member(
+    user_id: str,
+    session: AsyncSession = Depends(get_read_session_dependency),
+    # current_user: User = Depends(require_admin),  # Admin auth
+):
+    """Admin: Get member detail"""
+    service = AdminService(session)
+    return await service.get_member_detail(user_id)
+```
+
+## Registering Routers
+
+```python
+# backend/main.py
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from backend.middleware.error_handler import ErrorHandlerMiddleware
+
+from backend.api.v1.routers.auth import router as auth_router
+from backend.api.v1.routers.user import router as user_router
+from backend.api.v1.routers.admin import router as admin_router
+from backend.api.v1.routers.match import router as match_router
+from backend.api.v1.routers.upload import router as upload_router
+from backend.api.v1.routers.health import router as health_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    yield
+    # Shutdown
+
 
 def create_application() -> FastAPI:
-    app = FastAPI()
+    app = FastAPI(
+        title="YGS API",
+        description="YGS 매칭 플랫폼 API",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+
+    # Add middleware
+    app.add_middleware(ErrorHandlerMiddleware)
 
     # Register routers
-    app.include_router(artist_router)
+    app.include_router(health_router)
+    app.include_router(auth_router)
+    app.include_router(user_router)
+    app.include_router(admin_router)
+    app.include_router(match_router)
+    app.include_router(upload_router)
 
     return app
+
+
+app = create_application()
 ```
+
+## YGS API Routes Overview
+
+| Router | Prefix | Description |
+|--------|--------|-------------|
+| `auth.py` | `/api/v1/auth` | Login, signup, OAuth, token refresh |
+| `user.py` | `/api/v1/users` | User profile, photos, documents |
+| `admin.py` | `/api/v1/admin` | Dashboard, member management |
+| `match.py` | `/api/v1/matches` | Match weeks, history, cards |
+| `upload.py` | `/api/v1/upload` | S3 presigned URL generation |
+| `health.py` | `/api/v1/health` | Health checks |
 
 ## Best Practices
 
@@ -201,3 +337,5 @@ def create_application() -> FastAPI:
 6. **Session Dependency**: Read vs Write session split
 7. **Docstrings**: Document each endpoint
 8. **Async**: All route handlers must be async
+9. **Error Handling**: Try/except with HTTPException
+10. **Extra forbid**: Reject unknown fields in DTOs

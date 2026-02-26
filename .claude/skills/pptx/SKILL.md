@@ -92,6 +92,7 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 16. **Vintage Earthy**: Mustard (#E3B448), sage (#CBD18F), forest green (#3A6B35), cream (#F4F1DE)
 17. **Coastal Rose**: Old rose (#AD7670), beaver (#B49886), eggshell (#F3ECDC), ash gray (#BFD5BE)
 18. **Orange & Turquoise**: Light orange (#FC993E), grayish turquoise (#667C6F), white (#FCFCFC)
+19. **Minimal B&W + Red** (PROVEN): Black (#000000), white (#FFFFFF), red (#FF3B30), grays (#333, #666, #999, #F5F5F5). Extremely clean, high contrast. See [`designs/minimal-bw-red.md`](designs/minimal-bw-red.md) for complete design system with slide type templates and HTML examples.
 
 #### Visual Details Options
 
@@ -142,6 +143,11 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 - Negative space as a design element
 
 ### Layout Tips
+**CRITICAL - Flexbox Only:**
+- **NEVER use `position: absolute`** — It creates overlapping shapes in PPTX output
+- **ALWAYS use flexbox** (`display: flex`) for all positioning
+- Use `margin` for spacing between elements, `flex: 1` for proportional sizing
+
 **When creating slides with charts or tables:**
 - **Two-column layout (PREFERRED)**: Use a header spanning the full width, then two columns below - text/bullets in one column and the featured content in the other. This provides better balance and makes charts/tables more readable. Use flexbox with unequal column widths (e.g., 40%/60% split) to optimize space for each content type.
 - **Full-slide layout**: Let the featured content (chart/table) take up the entire slide for maximum impact and readability

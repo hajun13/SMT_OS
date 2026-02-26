@@ -2,79 +2,125 @@
 
 ## Overview
 
-This skill provides comprehensive frontend development guidelines adapted specifically for your qwarty project's tech stack:
+This skill provides comprehensive frontend development guidelines specifically adapted for the YGS (영영사) project's tech stack:
 
 - **Next.js 15** with App Router
 - **React 19**
 - **TypeScript**
-- **MUI v5** (NOT v7)
+- **shadcn/ui** (Radix UI + Tailwind CSS)
 - **Tailwind CSS 4**
-
-## What Was Adapted
-
-This skill was created by adapting the showcase repository's `frontend-dev-guidelines` (which was designed for React + MUI v7 + TanStack) to match your actual stack.
-
-### Key Differences from Original
-
-| Original Skill | Your Adapted Skill |
-|----------------|-------------------|
-| MUI v7 (Grid with `size={{}}`) | MUI v5 (Grid with `xs/sm/md` props) |
-| TanStack Query (`useSuspenseQuery`) | Native fetch + Server Components |
-| TanStack Router | Next.js 15 App Router |
-| Vite | Next.js with Turbopack |
-| Generic React patterns | Next.js Server/Client Component patterns |
+- **Multi-method Authentication** (Firebase, Kakao OAuth, custom JWT)
+- **Korean Localization**
 
 ## What This Skill Covers
 
 1. **Component Patterns** - Server Components vs Client Components, when to use each
 2. **Data Fetching** - Server Component async fetching, client-side patterns, API routes
-3. **Styling** - MUI v5 `sx` prop + Tailwind CSS 4 combination
+3. **Styling** - shadcn/ui components + Tailwind CSS 4 combination
 4. **Routing** - App Router file-based routing, dynamic routes, navigation
 5. **Loading & Error States** - loading.tsx, error.tsx, Suspense boundaries
 6. **Performance** - Server Components optimization, dynamic imports, image optimization
 7. **TypeScript** - Strict typing, Next.js types, component props
-8. **Common Patterns** - Authentication, file upload to S3, forms, pagination
-9. **Complete Examples** - Full working examples for Server/Client components
+8. **Authentication** - Multi-method auth with Firebase, Kakao, and custom JWT
+9. **Admin Dashboard** - Member management, consultations, matching interface
+10. **Common Patterns** - Forms with manual validation, modal patterns, URL-based state
+11. **Korean Localization** - All UI text in Korean
 
-## Skill Activation
+## YGS-Specific Features
 
-The skill is configured to activate when:
-
-### File Triggers
-- Working in `frontend/src/**/*.tsx` or `frontend/src/**/*.ts`
-- Files containing MUI imports, Grid components, 'use client', Next.js patterns
-
-### Prompt Triggers
-- Keywords: "component", "React", "UI", "page", "Next.js", "server component", "MUI", "styling"
-- Intent patterns: Creating/editing components, styling questions, Next.js patterns
-
-### Enforcement
-- **Type**: Guardrail (blocks execution)
-- **Priority**: High
-- You must use the skill before working on frontend files to ensure best practices
-
-## Quick Start
-
-### Test the Skill
-
-Try editing a frontend component file:
-
-```bash
-# Open a frontend file
-code frontend/src/components/artist/ArtistCard.tsx
-```
-
-The skill should automatically suggest when you:
-1. Ask about creating a component
-2. Edit a .tsx file in the frontend
-3. Ask about styling or MUI patterns
-
-### Skip Validation (if needed)
-
-Add this comment to any file to skip validation:
+### Authentication System
 
 ```typescript
-// @skip-validation
+// Multi-method auth via AuthProvider
+import { useAuth } from '@/providers/AuthProvider';
+
+const { user, isLoading, loginWithKakao, loginWithGoogle, logout } = useAuth();
+```
+
+### API Clients
+
+```typescript
+// Main API client
+import { api } from '@/lib/api';
+
+// Admin-specific API
+import { getMembers, updateMemberBasic, getDashboardStats } from '@/lib/adminApi';
+```
+
+### Constants Pattern
+
+```typescript
+// Enums with Korean labels
+import { USER_STATUS_OPTIONS, getEnumLabel } from '@/constants/enums';
+
+<Select>
+  {USER_STATUS_OPTIONS.map(opt => (
+    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+  ))}
+</Select>
+```
+
+## Component Counts (Current)
+
+| Category | Count | Location |
+|----------|-------|----------|
+| Admin Components | 27 | `src/components/admin/` |
+| Auth Components | 4 | `src/components/auth/` |
+| Layout Components | 2 | `src/components/layout/` |
+| Match Components | 3 | `src/components/match/` |
+| Landing Sections | 7 | `src/components/sections/` |
+| SEO Components | 4 | `src/components/seo/` |
+| UI Components | 11 | `src/components/ui/` |
+| **Total** | **~60** | |
+
+## shadcn/ui Quick Reference
+
+### Installing Components
+
+```bash
+# Initialize shadcn/ui
+npx shadcn@latest init
+
+# Add components
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add input
+npx shadcn@latest add dialog
+npx shadcn@latest add form
+npx shadcn@latest add select
+```
+
+### The cn() Utility
+
+```typescript
+// lib/utils.ts
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// Usage
+<div className={cn("flex items-center", isActive && "bg-primary", className)}>
+```
+
+### Basic Component Usage
+
+```typescript
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+
+<Card>
+  <CardHeader>
+    <CardTitle>제목</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <Input placeholder="입력해주세요" />
+    <Button>확인</Button>
+  </CardContent>
+</Card>
 ```
 
 ## Project Structure Match
@@ -84,41 +130,38 @@ The skill references YOUR actual project structure:
 ```
 frontend/
   src/
-    app/              # Next.js App Router (referenced in skill)
-    components/       # Your components (referenced in skill)
+    app/                  # Next.js App Router (referenced in skill)
+      admin/              # Admin dashboard routes
+      login/              # Authentication routes
+      form/               # User profile form
+      match/              # Matching interface
+    components/
+      admin/              # Admin-specific components
+        modals/           # Edit modals
+      auth/               # Auth components
+      layout/             # Navbar, Footer
+      match/              # Match cards
+      sections/           # Landing page sections
+      seo/                # SEO schema components
+      ui/                 # shadcn/ui components
     lib/
-      api.ts          # Your API client (used in examples)
-      serverAuth.ts   # Your auth (used in examples)
-      s3Upload.ts     # Your S3 upload (used in examples)
-    types/            # Your types (referenced in skill)
+      api.ts              # Main API client (used in examples)
+      adminApi.ts         # Admin API methods
+      utils.ts            # cn() utility
+      serverAuth.ts       # Server-side auth (used in examples)
+      firebaseAuth.ts     # Firebase integration
+      kakao.ts            # Kakao SDK integration
+      s3Upload.ts         # S3 upload utilities
+    providers/
+      AuthProvider.tsx    # Auth context provider
+    types/                # TypeScript definitions
+      admin.ts            # Admin types (362 lines)
+      match.ts            # Match types
+    constants/
+      enums.ts            # Enum options with Korean labels
 ```
 
-## Integration Status
-
-✅ Skill directory created: `.claude/skills/nextjs-frontend-guidelines/`
-✅ Main skill.md adapted for Next.js 15 + MUI v5
-✅ 10 resource files created with Next.js patterns
-✅ skill-rules.json updated with new skill configuration
-✅ Old frontend-dev-guidelines deprecated but kept for reference
-✅ Skill activation hooks already set up and working
-
-## Next Steps
-
-1. **Test the skill**: Edit a frontend component and the skill should suggest
-2. **Review the patterns**: Read through skill.md for quick reference
-3. **Expand resources**: Add more examples as your project patterns evolve
-4. **Update triggers**: Modify skill-rules.json if you need different activation patterns
-
-## Maintenance
-
-As your project evolves, you can:
-
-1. **Add new patterns**: Create new .md files in `resources/`
-2. **Update examples**: Edit resource files with project-specific examples
-3. **Adjust triggers**: Modify `skill-rules.json` to change when skill activates
-4. **Add skip markers**: Use `// @skip-validation` in files that don't need checking
-
-## Files Created
+## Files Structure
 
 ```
 .claude/skills/nextjs-frontend-guidelines/
@@ -127,7 +170,7 @@ As your project evolves, you can:
   └── resources/
       ├── component-patterns.md             # Server vs Client components
       ├── data-fetching.md                  # Async fetching, API routes
-      ├── styling-guide.md                  # MUI v5 + Tailwind CSS 4
+      ├── styling-guide.md                  # shadcn/ui + Tailwind CSS 4
       ├── file-organization.md              # Project structure
       ├── routing-guide.md                  # App Router patterns
       ├── loading-and-error-states.md       # Loading and error handling
@@ -137,19 +180,46 @@ As your project evolves, you can:
       └── complete-examples.md              # Full working examples
 ```
 
+## Skill Activation
+
+The skill is configured to activate when:
+
+### File Triggers
+- Working in `frontend/src/**/*.tsx` or `frontend/src/**/*.ts`
+- Files containing shadcn/ui imports, 'use client', Next.js patterns
+
+### Prompt Triggers
+- Keywords: "component", "React", "UI", "page", "Next.js", "server component", "shadcn", "styling", "admin", "auth"
+- Intent patterns: Creating/editing components, styling questions, Next.js patterns
+
 ## Tech Stack Compatibility
 
-✅ **Next.js 15**: All patterns use App Router
-✅ **React 19**: Server/Client component patterns
-✅ **MUI v5**: Grid uses `xs/sm/md` props (NOT `size={{}}`)
-✅ **TypeScript**: Strict typing throughout
-✅ **Tailwind CSS 4**: Combined with MUI patterns
-✅ **Your API client**: Examples use `src/lib/api.ts`
-✅ **Your auth**: Examples use `src/lib/serverAuth.ts`
-✅ **Your S3 upload**: Examples use `src/lib/s3Upload.ts`
+- **Next.js 15**: All patterns use App Router
+- **React 19**: Server/Client component patterns
+- **shadcn/ui**: Radix UI + Tailwind CSS components
+- **TypeScript**: Strict typing throughout
+- **Tailwind CSS 4**: Combined with shadcn/ui
+- **Your API clients**: Examples use `src/lib/api.ts` and `src/lib/adminApi.ts`
+- **Your auth**: Examples use `src/providers/AuthProvider.tsx`
+- **Your constants**: Examples use `src/constants/enums.ts`
+
+## Dependencies
+
+Core dependencies for shadcn/ui (already installed):
+
+```bash
+# Core dependencies
+pnpm add clsx tailwind-merge class-variance-authority
+
+# For forms (optional, YGS uses manual validation)
+pnpm add react-hook-form @hookform/resolvers zod
+
+# Icons (already installed)
+pnpm add lucide-react
+```
 
 ---
 
-**Status**: ✅ Fully integrated and ready to use
-**Created**: 2025-11-02
-**Adapted from**: claude-code-infrastructure-showcase/frontend-dev-guidelines
+**Status**: Updated for YGS project
+**Updated**: 2026-01-14
+**Stack**: Next.js 15 + React 19 + shadcn/ui + Tailwind CSS 4 + Multi-auth + Korean

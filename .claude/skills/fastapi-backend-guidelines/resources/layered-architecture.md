@@ -2,7 +2,7 @@
 
 ## Overview
 
-Your backend follows a three-layer architecture pattern:
+YGS backend follows a three-layer architecture pattern:
 
 **Router → Service → Repository**
 
@@ -18,7 +18,7 @@ Each layer has specific responsibilities and should not be bypassed.
 
 **Responsibilities**:
 - Handle HTTP requests/responses
-- Request validation (via Pydantic)
+- Request validation (via Pydantic DTOs)
 - Response formatting
 - HTTP status codes
 - Authentication/authorization checks
@@ -31,32 +31,40 @@ Each layer has specific responsibilities and should not be bypassed.
 
 **Example**:
 ```python
-# backend/api/v1/routers/artist.py
-from fastapi import APIRouter, Depends, status
+# backend/api/v1/routers/admin.py
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from backend.db.orm import get_read_session_dependency, get_write_session_dependency
-from backend.domain.artist.service import ArtistService
-from backend.dtos.artist import ArtistResponseDto, ArtistRequestDto
+from backend.domain.admin.service import AdminService
+from backend.dtos.admin import MemberDetailResponse, AdminBasicInfoUpdateRequest
+from backend.error import NotFoundError
 
-router = APIRouter(prefix="/api/v1/artists", tags=["artists"])
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-@router.get("/{artist_id}", response_model=ArtistResponseDto)
-async def get_artist(
-    artist_id: str,
+@router.get("/members/{user_id}", response_model=MemberDetailResponse)
+async def get_member(
+    user_id: str,
     session: AsyncSession = Depends(get_read_session_dependency),
 ):
-    """Get artist by ID"""
-    service = ArtistService(session)
-    return await service.get_artist(artist_id)
+    """Get member detail"""
+    service = AdminService(session)
+    try:
+        return await service.get_member_detail(user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-@router.post("/", response_model=ArtistResponseDto, status_code=status.HTTP_201_CREATED)
-async def create_artist(
-    dto: ArtistRequestDto,
+@router.patch("/members/{user_id}/basic", response_model=MemberDetailResponse)
+async def update_member_basic_info(
+    user_id: str,
+    dto: AdminBasicInfoUpdateRequest,
     session: AsyncSession = Depends(get_write_session_dependency),
 ):
-    """Create new artist"""
-    service = ArtistService(session)
-    return await service.create_artist(dto)
+    """Update member basic info"""
+    service = AdminService(session)
+    try:
+        return await service.update_member_basic_info(user_id, dto)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 ```
 
 ### 2. Service Layer (Business Logic)
@@ -70,6 +78,8 @@ async def create_artist(
 - Call repositories for data
 - Data transformation (model → DTO)
 - Error handling with domain exceptions
+- N+1 prevention with UserDataLoader
+- Generate presigned URLs for S3 assets
 
 **What it DOES NOT do**:
 - HTTP concerns (status codes, headers)
@@ -78,49 +88,86 @@ async def create_artist(
 
 **Example**:
 ```python
-# backend/domain/artist/service.py
-from typing import List, Optional
+# backend/domain/admin/service.py
+import asyncio
+from typing import List
+from datetime import datetime, timedelta
 from sqlmodel.ext.asyncio.session import AsyncSession
-from backend.domain.artist.repository import ArtistRepository
-from backend.domain.artist.model import Artist
-from backend.dtos.artist import ArtistRequestDto, ArtistResponseDto
-from backend.error import NotFoundError, ValidationError
+from backend.domain.user.repository import UserRepository, UserDataLoader
+from backend.dtos.admin import DashboardStatsResponse, MemberDetailResponse, AdminBasicInfoUpdateRequest
+from backend.error import NotFoundError
+from backend.utils.s3 import generate_presigned_url
 
-class ArtistService:
+class AdminService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        self._repository = ArtistRepository(session)
+        self._user_repository = UserRepository(session)
+        self._data_loader = UserDataLoader(session)
 
-    async def get_artist(self, artist_id: str) -> ArtistResponseDto:
-        """Get artist by ID with business logic"""
-        artist = await self._repository.get_by_id(artist_id)
+    async def get_dashboard_stats(self) -> DashboardStatsResponse:
+        """Get dashboard statistics with parallel queries"""
+        now = datetime.utcnow()
+        week_ago = now - timedelta(days=7)
 
-        if not artist:
-            raise NotFoundError(f"Artist {artist_id} not found")
+        # Run all queries in parallel
+        total, weekly, male, female = await asyncio.gather(
+            self._user_repository.count_all(),
+            self._user_repository.count_since(week_ago),
+            self._user_repository.count_by_gender("male"),
+            self._user_repository.count_by_gender("female"),
+        )
 
-        # Business logic: Check if artist is approved
-        if artist.status != "approved":
-            raise ValidationError("Artist is not approved yet")
+        return DashboardStatsResponse(
+            total_members=total,
+            weekly_signups=weekly,
+            male_count=male,
+            female_count=female,
+        )
 
-        return ArtistResponseDto.from_model(artist)
+    async def get_member_detail(self, user_id: str) -> MemberDetailResponse:
+        """Get full member detail with relations"""
+        user_with_relations = await self._data_loader.load_user_with_relations(
+            user_id,
+            load_profile=True,
+            load_photos=True,
+        )
 
-    async def create_artist(self, dto: ArtistRequestDto) -> ArtistResponseDto:
-        """Create new artist with business rules"""
-        # Business rule: Check if name already exists
-        existing = await self._repository.find_by_name(dto.name)
-        if existing:
-            raise ValidationError(f"Artist with name '{dto.name}' already exists")
+        if not user_with_relations:
+            raise NotFoundError(f"User {user_id} not found")
 
-        # Create artist
-        artist = Artist(**dto.model_dump())
-        created = await self._repository.create(artist)
+        # Generate presigned URLs for photos
+        photo_urls = []
+        if user_with_relations.photos:
+            photo_urls = await asyncio.gather(*[
+                generate_presigned_url(photo.s3_key)
+                for photo in user_with_relations.photos
+            ])
 
-        return ArtistResponseDto.from_model(created)
+        return MemberDetailResponse.from_user_with_relations(
+            user_with_relations,
+            photo_urls=photo_urls,
+        )
 
-    async def get_all_artists(self, limit: int = 100) -> List[ArtistResponseDto]:
-        """Get all approved artists"""
-        artists = await self._repository.find_all_approved(limit=limit)
-        return [ArtistResponseDto.from_model(a) for a in artists]
+    async def update_member_basic_info(
+        self,
+        user_id: str,
+        dto: AdminBasicInfoUpdateRequest,
+    ) -> MemberDetailResponse:
+        """Update member basic info"""
+        user = await self._user_repository.get_by_id(user_id)
+        if not user:
+            raise NotFoundError(f"User {user_id} not found")
+
+        # Apply updates
+        update_data = dto.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            if hasattr(user, field):
+                setattr(user, field, value)
+
+        user.updated_at = datetime.utcnow()
+        await self._user_repository.update(user)
+
+        return await self.get_member_detail(user_id)
 ```
 
 ### 3. Repository Layer (Data Access)
@@ -132,6 +179,7 @@ class ArtistService:
 - Data retrieval and persistence
 - Query optimization
 - Return domain models
+- Soft delete filtering
 
 **What it DOES NOT do**:
 - Business logic
@@ -141,48 +189,72 @@ class ArtistService:
 
 **Example**:
 ```python
-# backend/domain/artist/repository.py
-from typing import List, Optional
-from sqlmodel import select, or_
+# backend/domain/user/repository.py
+from typing import List, Optional, Tuple
+from sqlmodel import select, or_, func
 from sqlmodel.ext.asyncio.session import AsyncSession
-from backend.domain.artist.model import Artist
+from backend.domain.user.model import User
 from backend.domain.shared.base_repository import BaseRepository
 
-class ArtistRepository(BaseRepository[Artist]):
+class UserRepository(BaseRepository[User]):
     def __init__(self, session: AsyncSession):
-        super().__init__(session, Artist)
+        super().__init__(session, User)
 
-    async def find_by_name(self, name: str) -> Optional[Artist]:
-        """Find artist by exact name"""
-        stmt = select(Artist).where(Artist.name == name)
+    async def find_by_phone(self, phone: str) -> Optional[User]:
+        """Find user by phone number"""
+        stmt = select(User).where(
+            User.phone == phone,
+            User.deleted_at.is_(None)
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def find_all_approved(self, limit: int = 100) -> List[Artist]:
-        """Find all approved artists"""
-        stmt = (
-            select(Artist)
-            .where(Artist.status == "approved")
-            .limit(limit)
-            .order_by(Artist.created_at.desc())
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+    async def search_members(
+        self,
+        keyword: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> Tuple[List[User], int]:
+        """Search members with filters"""
+        stmt = select(User).where(User.deleted_at.is_(None))
 
-    async def search_by_keyword(self, keyword: str, limit: int = 10) -> List[Artist]:
-        """Search artists by keyword in name or bio"""
-        stmt = (
-            select(Artist)
-            .where(
+        if keyword:
+            stmt = stmt.where(
                 or_(
-                    Artist.name.ilike(f"%{keyword}%"),
-                    Artist.bio.ilike(f"%{keyword}%")
+                    User.name.ilike(f"%{keyword}%"),
+                    User.phone.ilike(f"%{keyword}%")
                 )
             )
-            .limit(limit)
+        if status:
+            stmt = stmt.where(User.status == status)
+
+        # Count total
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar()
+
+        # Apply pagination
+        stmt = stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
+        result = await self.session.execute(stmt)
+        users = list(result.scalars().all())
+
+        return users, total
+
+    async def count_all(self) -> int:
+        """Count all active users"""
+        stmt = select(func.count(User.id)).where(User.deleted_at.is_(None))
+        result = await self.session.execute(stmt)
+        return result.scalar()
+
+    async def count_by_gender(self, gender: str) -> int:
+        """Count users by gender"""
+        stmt = select(func.count(User.id)).where(
+            User.gender == gender,
+            User.deleted_at.is_(None)
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalar()
 ```
 
 ---
@@ -194,29 +266,31 @@ class ArtistRepository(BaseRepository[Artist]):
 ```
 1. Client Request
    ↓
-2. Router validates request
+2. Router validates request (Pydantic)
    ↓
 3. Router calls Service
    ↓
-4. Service calls Repository
+4. Service calls Repository / UserDataLoader
    ↓
-5. Repository queries database
+5. Repository queries database (with soft delete filter)
    ↓
-6. Repository returns Model
+6. Repository returns Model(s)
    ↓
 7. Service applies business logic
    ↓
-8. Service converts Model → DTO
+8. Service generates presigned URLs for S3 assets
    ↓
-9. Router returns HTTP response
+9. Service converts Model → DTO
+   ↓
+10. Router returns HTTP response
 ```
 
 ### Write Operation Flow
 
 ```
-1. Client Request with data
+1. Client Request with DTO
    ↓
-2. Router validates DTO
+2. Router validates DTO (Pydantic + field_validator)
    ↓
 3. Router calls Service with DTO
    ↓
@@ -261,65 +335,50 @@ class ArtistRepository(BaseRepository[Artist]):
 
 ---
 
-## Common Patterns
+## YGS-Specific Patterns
 
-### Pattern: Router with Multiple Operations
+### Read/Write Session Split
 
 ```python
-@router.get("/")
-async def list_artists(
-    limit: int = 100,
-    session: AsyncSession = Depends(get_read_session_dependency),
-):
-    service = ArtistService(session)
-    return await service.get_all_artists(limit)
+# Read operations (GET)
+session: AsyncSession = Depends(get_read_session_dependency)
 
-@router.post("/")
-async def create_artist(
-    dto: ArtistRequestDto,
-    session: AsyncSession = Depends(get_write_session_dependency),
-):
-    service = ArtistService(session)
-    return await service.create_artist(dto)
-
-@router.put("/{artist_id}")
-async def update_artist(
-    artist_id: str,
-    dto: ArtistRequestDto,
-    session: AsyncSession = Depends(get_write_session_dependency),
-):
-    service = ArtistService(session)
-    return await service.update_artist(artist_id, dto)
-
-@router.delete("/{artist_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_artist(
-    artist_id: str,
-    session: AsyncSession = Depends(get_write_session_dependency),
-):
-    service = ArtistService(session)
-    await service.delete_artist(artist_id)
+# Write operations (POST/PATCH/DELETE)
+session: AsyncSession = Depends(get_write_session_dependency)
 ```
 
-### Pattern: Service with Transaction
+### UserDataLoader for N+1 Prevention
 
 ```python
-async def create_artist_with_artworks(
-    self,
-    artist_dto: ArtistRequestDto,
-    artwork_dtos: List[ArtworkRequestDto],
-) -> ArtistResponseDto:
-    """Create artist and their artworks in a transaction"""
-    # Both operations use same session (transaction)
-    artist = Artist(**artist_dto.model_dump())
-    created_artist = await self._artist_repository.create(artist)
+# In service - load user with relations in parallel
+user_with_relations = await self._data_loader.load_user_with_relations(
+    user_id,
+    load_profile=True,
+    load_photos=True,
+    load_subscription=True,
+)
+```
 
-    for artwork_dto in artwork_dtos:
-        artwork = Artwork(**artwork_dto.model_dump(), artist_id=created_artist.id)
-        await self._artwork_repository.create(artwork)
+### Parallel Queries with asyncio.gather
 
-    await self.session.commit()  # Commit transaction
+```python
+# Dashboard stats - all queries run in parallel
+total, weekly, male, female = await asyncio.gather(
+    self._repository.count_all(),
+    self._repository.count_since(week_ago),
+    self._repository.count_by_gender("male"),
+    self._repository.count_by_gender("female"),
+)
+```
 
-    return ArtistResponseDto.from_model(created_artist)
+### Soft Delete Pattern
+
+```python
+# Repository always filters soft-deleted records
+stmt = select(User).where(
+    User.id == user_id,
+    User.deleted_at.is_(None)  # Exclude soft-deleted
+)
 ```
 
 ---
@@ -333,4 +392,8 @@ async def create_artist_with_artworks(
 5. **Async throughout**: All layers use async/await
 6. **Read/Write split**: Use appropriate session dependency
 7. **One service per request**: Create service instance in each route
-8. **Error handling**: Raise domain exceptions in service, handle in middleware
+8. **Error handling**: Raise domain exceptions in service, handle in router/middleware
+9. **UserDataLoader**: For loading user with multiple relations
+10. **asyncio.gather**: For parallel independent queries
+11. **Soft delete**: Always filter `deleted_at.is_(None)`
+12. **ULID IDs**: Use entity prefixes for readable IDs

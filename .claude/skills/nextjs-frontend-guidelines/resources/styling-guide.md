@@ -1,161 +1,235 @@
-# Styling Guide - MUI v5 + Tailwind CSS 4
+# Styling Guide - shadcn/ui + Tailwind CSS 4
 
 ## Overview
 
-Your project uses two styling systems:
-- **MUI v5**: Component library with `sx` prop
+Your project uses a modern styling approach:
+- **shadcn/ui**: Pre-built, accessible components with Tailwind styling
 - **Tailwind CSS 4**: Utility-first CSS framework
-
-Use both together appropriately based on context.
+- **cn() utility**: Class merging with clsx + tailwind-merge
 
 ---
 
-## MUI v5 Styling
+## shadcn/ui Styling
 
-### sx Prop (Primary Method)
+### What is shadcn/ui?
 
-```typescript
-import { Box, Typography } from '@mui/material';
-import type { SxProps, Theme } from '@mui/material';
+shadcn/ui is NOT a component library in the traditional sense. It's a collection of reusable components that you copy and paste into your project. This means:
 
-export function Component() {
-  return (
-    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-      <Typography sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-        Title
-      </Typography>
-    </Box>
-  );
-}
+- Components live in YOUR codebase (`src/components/ui/`)
+- You own the code and can customize it freely
+- No external npm package dependency for components
+- Built on Radix UI primitives for accessibility
+- Styled with Tailwind CSS
+
+### Installing shadcn/ui
+
+```bash
+# Initialize shadcn/ui in your project
+npx shadcn@latest init
+
+# Add individual components
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add input
+npx shadcn@latest add dialog
+npx shadcn@latest add form
+npx shadcn@latest add select
+npx shadcn@latest add skeleton
 ```
 
-### Theme Access
+### Component Location
 
-```typescript
-<Box
-  sx={(theme) => ({
-    p: 2,
-    bgcolor: theme.palette.background.default,
-    color: theme.palette.text.primary,
-    [theme.breakpoints.down('md')]: {
-      p: 1,
-    },
-  })}
->
-  Content
-</Box>
+All shadcn/ui components go in `src/components/ui/`:
+
 ```
-
-### Inline Styles (< 100 lines)
-
-```typescript
-import type { SxProps, Theme } from '@mui/material';
-
-export function Component() {
-  const styles: Record<string, SxProps<Theme>> = {
-    container: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2,
-      p: 3,
-    },
-    title: {
-      fontSize: '1.5rem',
-      fontWeight: 'bold',
-      color: 'primary.main',
-    },
-  };
-
-  return (
-    <Box sx={styles.container}>
-      <Typography sx={styles.title}>Title</Typography>
-    </Box>
-  );
-}
-```
-
-### Separate Styles File (> 100 lines)
-
-```typescript
-// Component.styles.ts
-import type { SxProps, Theme } from '@mui/material';
-
-export const styles: Record<string, SxProps<Theme>> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-    p: 3,
-    bgcolor: 'background.paper',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  // ... many more styles
-};
-
-// Component.tsx
-import { styles } from './Component.styles';
-
-export function Component() {
-  return (
-    <Box sx={styles.container}>
-      <Box sx={styles.header}>...</Box>
-    </Box>
-  );
-}
+src/components/ui/
+  button.tsx
+  card.tsx
+  input.tsx
+  dialog.tsx
+  form.tsx
+  select.tsx
+  skeleton.tsx
+  alert.tsx
+  badge.tsx
+  ...
 ```
 
 ---
 
-## ⚠️ MUI v5 Grid (CRITICAL WARNING!)
+## The cn() Utility (CRITICAL)
 
-**⚠️ YOUR PROJECT USES MUI v5, NOT v7!**
+The `cn()` utility is essential for shadcn/ui. It merges class names intelligently.
 
-**DO NOT USE MUI v7 Grid syntax. It will break your application!**
+### Setup
 
 ```typescript
-import { Grid } from '@mui/material';
+// lib/utils.ts
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
-// ✅ MUI v5 Syntax (CORRECT - USE THIS)
-<Grid container spacing={2}>
-  <Grid item xs={12} md={6}>
-    Content
-  </Grid>
-  <Grid item xs={12} md={6}>
-    Content
-  </Grid>
-</Grid>
-
-// ❌ MUI v7 Syntax (WRONG - DO NOT USE!)
-// This will cause errors in your MUI v5 project!
-<Grid size={{ xs: 12, md: 6 }}>
-  Content
-</Grid>
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 ```
 
-**Key Differences:**
-- **MUI v5**: Uses `<Grid item xs={12}>` with separate `item` prop
-- **MUI v7**: Uses `<Grid size={{xs: 12}}>` with `size` prop object
-- **Your Project**: MUI v5 (version ^5.9.2) - ALWAYS use `item` + `xs/sm/md/lg/xl` props
-
-### Responsive Grid
+### Usage
 
 ```typescript
-<Grid container spacing={2}>
-  {/* Full width on mobile, half on tablet, third on desktop */}
-  <Grid item xs={12} sm={6} md={4}>
-    Card 1
-  </Grid>
-  <Grid item xs={12} sm={6} md={4}>
-    Card 2
-  </Grid>
-  <Grid item xs={12} sm={6} md={4}>
-    Card 3
-  </Grid>
-</Grid>
+import { cn } from '@/lib/utils';
+
+// Basic usage
+<div className={cn("flex items-center", className)}>
+
+// Conditional classes
+<div className={cn(
+  "flex items-center gap-2 p-4",
+  isActive && "bg-primary text-primary-foreground",
+  isDisabled && "opacity-50 cursor-not-allowed"
+)}>
+
+// Combining variants
+<Button className={cn(
+  "w-full",
+  size === "lg" && "h-12 text-lg"
+)}>
+```
+
+### Why cn() is Important
+
+```typescript
+// WITHOUT cn() - classes may conflict
+<div className={`p-4 ${className}`}>  // If className has p-2, both apply
+
+// WITH cn() - later classes override earlier ones
+<div className={cn("p-4", className)}>  // p-2 from className wins
+```
+
+---
+
+## shadcn/ui Component Variants
+
+### Button Variants
+
+```typescript
+import { Button } from '@/components/ui/button';
+
+// Default (primary)
+<Button>Click me</Button>
+
+// Variants
+<Button variant="default">Primary</Button>
+<Button variant="secondary">Secondary</Button>
+<Button variant="destructive">Delete</Button>
+<Button variant="outline">Outline</Button>
+<Button variant="ghost">Ghost</Button>
+<Button variant="link">Link</Button>
+
+// Sizes
+<Button size="default">Default</Button>
+<Button size="sm">Small</Button>
+<Button size="lg">Large</Button>
+<Button size="icon"><Icon /></Button>
+
+// Custom styling
+<Button className="w-full bg-blue-600 hover:bg-blue-700">
+  Custom Button
+</Button>
+```
+
+### Card Component
+
+```typescript
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+
+<Card className="w-[350px]">
+  <CardHeader>
+    <CardTitle>Card Title</CardTitle>
+    <CardDescription>Card description goes here</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <p>Card content</p>
+  </CardContent>
+  <CardFooter>
+    <Button>Action</Button>
+  </CardFooter>
+</Card>
+```
+
+### Input Component
+
+```typescript
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+<div className="grid w-full max-w-sm items-center gap-1.5">
+  <Label htmlFor="email">Email</Label>
+  <Input type="email" id="email" placeholder="Email" />
+</div>
+```
+
+### Dialog Component
+
+```typescript
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog';
+
+<Dialog>
+  <DialogTrigger asChild>
+    <Button variant="outline">Open Dialog</Button>
+  </DialogTrigger>
+  <DialogContent className="sm:max-w-[425px]">
+    <DialogHeader>
+      <DialogTitle>Dialog Title</DialogTitle>
+      <DialogDescription>
+        Description of what this dialog does.
+      </DialogDescription>
+    </DialogHeader>
+    <div className="py-4">
+      {/* Dialog content */}
+    </div>
+    <DialogFooter>
+      <Button type="submit">Save changes</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+### Select Component
+
+```typescript
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+<Select>
+  <SelectTrigger className="w-[180px]">
+    <SelectValue placeholder="Select option" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="option1">Option 1</SelectItem>
+    <SelectItem value="option2">Option 2</SelectItem>
+    <SelectItem value="option3">Option 3</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
 ---
@@ -167,15 +241,15 @@ import { Grid } from '@mui/material';
 ```typescript
 export function Component() {
   return (
-    <div className="flex items-center gap-4 p-4 bg-white rounded-lg shadow-md">
+    <div className="flex items-center gap-4 p-4 bg-background rounded-lg border">
       <img
         src="..."
         alt="..."
         className="w-16 h-16 rounded-full object-cover"
       />
       <div className="flex-1">
-        <h3 className="text-lg font-bold text-gray-900">Title</h3>
-        <p className="text-sm text-gray-600">Description</p>
+        <h3 className="text-lg font-bold text-foreground">Title</h3>
+        <p className="text-sm text-muted-foreground">Description</p>
       </div>
     </div>
   );
@@ -195,56 +269,72 @@ export function Component() {
 </div>
 ```
 
-### Combining with MUI
+### shadcn/ui Color Tokens
+
+shadcn/ui uses CSS custom properties for theming:
 
 ```typescript
-import { Button } from '@mui/material';
+// Primary colors
+<div className="bg-primary text-primary-foreground">Primary</div>
 
-export function Component() {
-  return (
-    <div className="flex items-center gap-4">
-      {/* Tailwind for layout */}
-      <Button
-        sx={{ px: 3, py: 1 }}
-        /* MUI for component styling */
-      >
-        Click Me
-      </Button>
-    </div>
-  );
-}
+// Secondary colors
+<div className="bg-secondary text-secondary-foreground">Secondary</div>
+
+// Muted/subtle
+<div className="bg-muted text-muted-foreground">Muted</div>
+
+// Accent
+<div className="bg-accent text-accent-foreground">Accent</div>
+
+// Destructive (errors, delete actions)
+<div className="bg-destructive text-destructive-foreground">Destructive</div>
+
+// Background and foreground
+<div className="bg-background text-foreground">Default</div>
+
+// Border and input
+<div className="border border-border">Bordered</div>
+<Input className="border-input" />
+
+// Card
+<div className="bg-card text-card-foreground">Card</div>
 ```
 
 ---
 
 ## When to Use What
 
-### Use MUI sx when:
-- Styling MUI components
-- Need theme access (colors, breakpoints)
-- Complex component-specific styles
-- Hover/active states for MUI components
+### Use shadcn/ui Components when:
+- Building UI elements (buttons, cards, dialogs, forms)
+- Need accessible, well-designed components
+- Want consistent design across the app
+- Need interactive elements (dropdowns, modals)
 
-### Use Tailwind when:
+### Use Tailwind Classes when:
 - Layout (flex, grid, positioning)
 - Spacing (padding, margin, gap)
-- Quick utility styling
-- Non-MUI elements (div, img, etc.)
+- Typography (font size, weight, color)
+- Customizing shadcn/ui components
+- One-off styling needs
 
 ### Combine Both:
 ```typescript
-import { Box, Typography } from '@mui/material';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
-export function Card() {
+export function FeatureCard() {
   return (
     {/* Tailwind for layout */}
     <div className="flex flex-col gap-4 p-6">
-      {/* MUI for themed components */}
-      <Box sx={{ bgcolor: 'primary.light', p: 2, borderRadius: 1 }}>
-        <Typography sx={{ color: 'primary.contrastText' }}>
-          Title
-        </Typography>
-      </Box>
+      {/* shadcn/ui for components */}
+      <Card>
+        <CardContent className="pt-6">
+          {/* Custom Tailwind styling */}
+          <h2 className="text-2xl font-bold mb-4">Feature</h2>
+          <p className="text-muted-foreground mb-4">Description</p>
+          <Button className="w-full">Learn More</Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -254,30 +344,25 @@ export function Card() {
 
 ## Common Patterns
 
-### Card Component
+### Responsive Card Grid
 
 ```typescript
-import { Paper, Typography } from '@mui/material';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export function Card({ title, children }) {
+export function CardGrid({ items }) {
   return (
-    <Paper
-      elevation={2}
-      sx={{
-        p: 3,
-        borderRadius: 2,
-        '&:hover': {
-          elevation: 4,
-          transform: 'translateY(-2px)',
-          transition: 'all 0.2s',
-        },
-      }}
-    >
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        {title}
-      </Typography>
-      {children}
-    </Paper>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {items.map((item) => (
+        <Card key={item.id}>
+          <CardHeader>
+            <CardTitle>{item.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">{item.description}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
 ```
@@ -285,62 +370,104 @@ export function Card({ title, children }) {
 ### Form Layout
 
 ```typescript
-import { Box, TextField, Button } from '@mui/material';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function Form() {
   return (
-    <Box
-      component="form"
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        maxWidth: 500,
-        mx: 'auto',
-      }}
-    >
-      <TextField label="Name" fullWidth />
-      <TextField label="Email" type="email" fullWidth />
-      <Button variant="contained" type="submit">
+    <form className="flex flex-col gap-4 max-w-md mx-auto">
+      <div className="space-y-2">
+        <Label htmlFor="name">Name</Label>
+        <Input id="name" placeholder="Enter your name" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" placeholder="Enter your email" />
+      </div>
+      <Button type="submit" className="mt-4">
         Submit
       </Button>
-    </Box>
+    </form>
   );
 }
 ```
 
-### Responsive Layout
+### Responsive Sidebar Layout
 
 ```typescript
-import { Box } from '@mui/material';
-
-export function ResponsiveLayout() {
+export function Layout({ children }) {
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
-        gap: { xs: 2, md: 4 },
-        p: { xs: 2, sm: 3, md: 4 },
-      }}
-    >
-      <Box sx={{ flex: { xs: 1, md: 2 } }}>Main Content</Box>
-      <Box sx={{ flex: 1 }}>Sidebar</Box>
-    </Box>
+    <div className="flex min-h-screen">
+      {/* Sidebar - hidden on mobile */}
+      <aside className="hidden md:flex w-64 flex-col border-r bg-muted/40">
+        {/* Sidebar content */}
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 p-4 md:p-8">
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+### Loading State with Skeleton
+
+```typescript
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
+export function CardSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-[200px]" />
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-[80%]" />
+      </CardContent>
+    </Card>
   );
 }
 ```
 
 ---
 
+## Dark Mode Support
+
+shadcn/ui has built-in dark mode support through CSS custom properties:
+
+```typescript
+// In your globals.css
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    /* ... other light mode variables */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    /* ... other dark mode variables */
+  }
+}
+```
+
+Components automatically adapt to the current theme.
+
+---
+
 ## Best Practices
 
-1. **<100 lines inline, >100 separate**: Keep styles organized
-2. **Type your styles**: Use `SxProps<Theme>` for type safety
-3. **Use theme**: Access theme colors, spacing, breakpoints
-4. **⚠️ MUI v5 Grid ONLY**: ALWAYS use `<Grid item xs={12}>` syntax, NEVER use `<Grid size={{xs: 12}}>` (v7 syntax)
-5. **Combine systems**: Use Tailwind for layout, MUI for components
-6. **Responsive design**: Use theme breakpoints or Tailwind responsive classes
-7. **Hover states**: Define in sx prop for MUI components
-8. **Semantic names**: Name style objects descriptively
-9. **Version awareness**: Check package.json before using MUI features (you're on v5, not v7)
+1. **Always use cn()**: For conditional or merged class names
+2. **Use semantic tokens**: `bg-primary` instead of `bg-blue-500`
+3. **Component-first**: Prefer shadcn/ui components over raw HTML
+4. **Customize via className**: Add Tailwind classes to shadcn/ui components
+5. **Responsive design**: Use Tailwind responsive prefixes (sm:, md:, lg:)
+6. **Keep components in ui/**: All shadcn/ui components go in `src/components/ui/`
+7. **Don't modify ui/ directly**: Create wrapper components if you need different defaults
+8. **Use proper spacing tokens**: gap-4, p-4, mb-4 etc. for consistency

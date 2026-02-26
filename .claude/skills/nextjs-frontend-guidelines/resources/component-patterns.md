@@ -21,7 +21,7 @@
 
 ```typescript
 // Server Component (no 'use client')
-import { Box, Typography } from '@mui/material';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import type { Artist } from '@/types/artist';
 
@@ -34,10 +34,14 @@ export default async function ArtistProfile({ artistId }: ArtistProfileProps) {
   const artist: Artist = await api.artists.getById(artistId);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4">{artist.name}</Typography>
-      <Typography variant="body1">{artist.bio}</Typography>
-    </Box>
+    <Card>
+      <CardHeader>
+        <CardTitle>{artist.name}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-muted-foreground">{artist.bio}</p>
+      </CardContent>
+    </Card>
   );
 }
 ```
@@ -63,7 +67,8 @@ export default async function ArtistProfile({ artistId }: ArtistProfileProps) {
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Box, Button, TextField } from '@mui/material';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 
 interface CommentFormProps {
@@ -89,17 +94,17 @@ export function CommentForm({ artworkId, onSubmit }: CommentFormProps) {
   }, [artworkId, comment, onSubmit]);
 
   return (
-    <Box sx={{ display: 'flex', gap: 2 }}>
-      <TextField
+    <div className="flex flex-col gap-4">
+      <Textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Add a comment..."
-        fullWidth
+        className="min-h-[100px]"
       />
       <Button onClick={handleSubmit} disabled={loading}>
-        Submit
+        {loading ? 'Submitting...' : 'Submit'}
       </Button>
-    </Box>
+    </div>
   );
 }
 ```
@@ -113,18 +118,21 @@ export function CommentForm({ artworkId, onSubmit }: CommentFormProps) {
 
 // 1. Imports
 import { useState, useCallback } from 'react';
-import { Box, Button } from '@mui/material';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import type { User } from '@/types/user';
 
 // 2. Types/Interfaces
 interface MyComponentProps {
   userId: string;
+  className?: string;
   onUpdate?: (user: User) => void;
 }
 
 // 3. Component Function
-export function MyComponent({ userId, onUpdate }: MyComponentProps) {
+export function MyComponent({ userId, className, onUpdate }: MyComponentProps) {
   // 4. State
   const [data, setData] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,12 +151,14 @@ export function MyComponent({ userId, onUpdate }: MyComponentProps) {
 
   // 6. Render
   return (
-    <Box sx={{ p: 2 }}>
-      <Button onClick={fetchUser} disabled={loading}>
-        Fetch User
-      </Button>
-      {data && <div>{data.name}</div>}
-    </Box>
+    <Card className={cn("p-4", className)}>
+      <CardContent>
+        <Button onClick={fetchUser} disabled={loading}>
+          {loading ? 'Loading...' : 'Fetch User'}
+        </Button>
+        {data && <p className="mt-4 text-muted-foreground">{data.name}</p>}
+      </CardContent>
+    </Card>
   );
 }
 ```
@@ -168,7 +178,7 @@ export default async function ArtistsPage() {
   const artists = await api.artists.getAll();
 
   return (
-    <div>
+    <div className="container py-8">
       {/* Client Component for interactive filters */}
       <ArtistFilters />
 
@@ -213,19 +223,20 @@ For heavy Client Components, use dynamic imports:
 
 ```typescript
 import dynamic from 'next/dynamic';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Lazy load with loading state
 const HeavyChart = dynamic(
   () => import('@/components/charts/HeavyChart'),
   {
-    loading: () => <div>Loading chart...</div>,
+    loading: () => <Skeleton className="h-[400px] w-full" />,
     ssr: false, // Disable SSR if component uses browser APIs
   }
 );
 
 export function Dashboard() {
   return (
-    <div>
+    <div className="space-y-4">
       <HeavyChart data={...} />
     </div>
   );
@@ -238,6 +249,7 @@ export function Dashboard() {
 'use client';
 
 import { memo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface ExpensiveListProps {
   items: Item[];
@@ -246,9 +258,15 @@ interface ExpensiveListProps {
 export const ExpensiveList = memo(function ExpensiveList({ items }: ExpensiveListProps) {
   // Expensive rendering logic
   return (
-    <ul>
-      {items.map(item => <li key={item.id}>{item.name}</li>)}
-    </ul>
+    <div className="grid gap-4">
+      {items.map(item => (
+        <Card key={item.id}>
+          <CardContent className="pt-6">
+            {item.name}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 });
 ```
@@ -262,12 +280,13 @@ Always use `useCallback` for event handlers passed to child components:
 ```typescript
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export function Parent() {
   const [count, setCount] = useState(0);
 
-  // ✅ Wrapped in useCallback
+  // Wrapped in useCallback
   const handleClick = useCallback(() => {
     setCount(prev => prev + 1);
   }, []);
@@ -276,39 +295,65 @@ export function Parent() {
 }
 ```
 
-### Form Handling
+### Form Handling with shadcn/ui
 
 ```typescript
 'use client';
 
 import { useState, useCallback, FormEvent } from 'react';
-import { Box, TextField, Button } from '@mui/material';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
-    // Handle submission
+    setLoading(true);
+    try {
+      // Handle submission
+    } finally {
+      setLoading(false);
+    }
   }, [email, password]);
 
   return (
-    <Box component="form" onSubmit={handleSubmit}>
-      <TextField
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        label="Email"
-      />
-      <TextField
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        label="Password"
-      />
-      <Button type="submit">Login</Button>
-    </Box>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Login</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 ```
@@ -325,10 +370,16 @@ interface ButtonProps {
   onClick?: () => void;
   /** Whether the button is in a loading state */
   loading?: boolean;
+  /** Additional CSS classes */
+  className?: string;
 }
 
-export function Button({ label, onClick, loading = false }: ButtonProps) {
-  return <button onClick={onClick} disabled={loading}>{label}</button>;
+export function CustomButton({ label, onClick, loading = false, className }: ButtonProps) {
+  return (
+    <Button onClick={onClick} disabled={loading} className={className}>
+      {loading ? 'Loading...' : label}
+    </Button>
+  );
 }
 ```
 
@@ -348,6 +399,29 @@ import type { Artist } from '@/types/artist';
 
 interface ArtistCardProps {
   artist: Artist;
+  className?: string;
+}
+```
+
+### Using cn() for className Props
+
+```typescript
+import { cn } from '@/lib/utils';
+
+interface ComponentProps {
+  className?: string;
+  children: React.ReactNode;
+}
+
+export function Component({ className, children }: ComponentProps) {
+  return (
+    <div className={cn(
+      "flex items-center gap-4 p-4 rounded-lg border",
+      className
+    )}>
+      {children}
+    </div>
+  );
 }
 ```
 
@@ -361,3 +435,5 @@ interface ArtistCardProps {
 6. **Named Exports**: Use named exports for components (easier to search and refactor)
 7. **Async Server Components**: Take advantage of async/await in Server Components
 8. **Error Boundaries**: Wrap Client Components with error.tsx for graceful failures
+9. **Always accept className**: Components should accept `className` prop for customization
+10. **Use cn() for class merging**: Always use `cn()` when combining classes
