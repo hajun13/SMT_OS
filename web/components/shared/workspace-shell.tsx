@@ -46,7 +46,6 @@ export function WorkspaceShell({ title, subtitle, navItems, sectionLinks = [], c
               className="rounded-xl border border-border bg-white px-3 py-2 text-left"
             >
               <p className="text-sm font-medium">{item.label}</p>
-              {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
             </Link>
           ))}
         </nav>
