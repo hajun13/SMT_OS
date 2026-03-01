@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 20% 98%;
+  --foreground: 222 24% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 24% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 24% 14%;
+  --primary: 214 84% 44%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 22% 94%;
+  --secondary-foreground: 222 24% 14%;
+  --muted: 210 18% 94%;
+  --muted-foreground: 220 10% 42%;
+  --accent: 206 32% 92%;
+  --accent-foreground: 222 24% 14%;
+  --destructive: 3 78% 53%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 22% 88%;
+  --input: 214 22% 88%;
+  --ring: 214 84% 44%;
+  --radius: 0.9rem;
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground font-body antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  @apply font-display tracking-tight;
+}
+
+.app-shell {
+  @apply mx-auto w-full max-w-[980px] px-4;
+  padding-top: calc(0.8rem + env(safe-area-inset-top));
+  padding-bottom: calc(1.4rem + env(safe-area-inset-bottom));
+}
+
+.surface-soft {
+  @apply border border-border/80 bg-white/85 backdrop-blur;
+}
+
+.section-title {
+  @apply text-lg font-semibold md:text-xl;
+}
+
+.section-desc {
+  @apply text-sm text-muted-foreground;
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    @apply pb-10;
+  }
+}

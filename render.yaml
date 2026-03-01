@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: smt-os-api
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install uv && uv sync --frozen
+    startCommand: uv run uvicorn smt_os.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: STORAGE_BACKEND
+        value: postgres
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: SUPERADMIN_NAME
+        sync: false
+      - key: SUPERADMIN_TEAM
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false

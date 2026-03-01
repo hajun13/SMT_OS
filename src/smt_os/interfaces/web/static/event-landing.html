@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>행사 안내 | S.M.T</title>
+    <link rel="manifest" href="/assets/app.webmanifest" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <a href="/" class="brand"><span class="brand-mark">S</span> S.M.T 두드림 OS</a>
+        <nav class="nav">
+          <a href="/">홈</a>
+          <a href="/console">운영 콘솔</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <span class="eyebrow">Public Event</span>
+        <h1 id="eventTitle">행사 정보를 불러오는 중</h1>
+        <p class="sub" id="eventMeta">잠시만 기다려 주세요.</p>
+        <div class="toolbar">
+          <a class="btn btn-primary" id="registerLink" href="#">등록하기</a>
+          <a class="btn btn-secondary" id="ticketLink" href="#">티켓 조회</a>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <p class="kicker">STEP 1</p>
+          <div class="section-head">
+            <h3>등록 정보 입력</h3>
+            <span class="pill">약 1분</span>
+          </div>
+          <p class="muted">신청자와 참가자 정보를 입력하면 즉시 티켓 토큰이 발급됩니다.</p>
+        </article>
+
+        <article class="card">
+          <p class="kicker">STEP 2</p>
+          <div class="section-head">
+            <h3>토큰으로 티켓 조회</h3>
+            <span class="pill">즉시 확인</span>
+          </div>
+          <p class="muted">등록 완료 후 안내된 토큰으로 상태를 확인하고 현장 체크인을 진행하세요.</p>
+        </article>
+
+        <article class="card">
+          <p class="kicker">NOTICE</p>
+          <div class="section-head">
+            <h3>현장 운영 안내</h3>
+            <span class="pill">모바일 권장</span>
+          </div>
+          <p class="muted">모든 버튼과 입력은 모바일 터치에 맞춰 설계되었습니다.</p>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const slug = window.location.pathname.split('/')[2];
+      const titleEl = document.getElementById('eventTitle');
+      const metaEl = document.getElementById('eventMeta');
+      const registerLink = document.getElementById('registerLink');
+      const ticketLink = document.getElementById('ticketLink');
+
+      registerLink.href = `/e/${slug}/register`;
+      ticketLink.href = `/e/${slug}/ticket`;
+
+      fetch(`/api/public/events/${slug}`)
+        .then(async (res) => {
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.detail || '행사 조회 실패');
+          return body;
+        })
+        .then((event) => {
+          titleEl.textContent = event.title;
+          metaEl.textContent = `${event.template} · 정원 ${event.capacity}명`;
+        })
+        .catch((err) => {
+          titleEl.textContent = '행사를 찾을 수 없습니다';
+          metaEl.textContent = err.message;
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "S.M.T 두드림 OS",
+  "short_name": "SMT OS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f4ef",
+  "theme_color": "#0f766e",
+  "lang": "ko",
+  "description": "학생사역 행사 운영 웹앱"
+}

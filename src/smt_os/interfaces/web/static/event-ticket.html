@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>내 티켓 | S.M.T</title>
+    <link rel="manifest" href="/assets/app.webmanifest" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <a href="/" class="brand"><span class="brand-mark">S</span> 내 티켓</a>
+        <nav class="nav">
+          <a id="landingLink" href="#">행사 안내</a>
+          <a id="registerLink" href="#">등록</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <span class="eyebrow">Ticket</span>
+        <h1 id="ticketTitle">티켓 정보를 불러오는 중</h1>
+        <p class="sub" id="ticketMeta">URL에 token이 있으면 자동 조회됩니다.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h3>토큰 조회</h3>
+          <span class="pill">public</span>
+        </div>
+        <label for="tokenInput">티켓 토큰</label>
+        <input id="tokenInput" placeholder="토큰 입력" />
+        <p class="footer-note" id="log">등록 직후 전달받은 토큰을 입력하세요.</p>
+      </section>
+    </main>
+
+    <div class="mobile-dock">
+      <div class="dock-grid single">
+        <button class="btn btn-primary" id="loadBtn">티켓 조회</button>
+      </div>
+    </div>
+
+    <script>
+      const byId = (id) => document.getElementById(id);
+      const params = new URLSearchParams(window.location.search);
+      const slug = window.location.pathname.split('/')[2];
+
+      byId('landingLink').href = `/e/${slug}`;
+      byId('registerLink').href = `/e/${slug}/register`;
+
+      const log = (message, error = false) => {
+        const el = byId('log');
+        el.textContent = message;
+        el.style.color = error ? 'var(--alert)' : 'var(--ink-soft)';
+      };
+
+      const loadTicket = async (token) => {
+        try {
+          if (!token) throw new Error('토큰을 입력하세요.');
+          const res = await fetch(`/api/public/tickets/${encodeURIComponent(token)}`);
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.detail || '티켓 조회 실패');
+
+          byId('ticketTitle').textContent = `${body.participant_name}님의 티켓`;
+          byId('ticketMeta').textContent = `상태: ${body.ticket_status}`;
+          log('티켓 조회 완료');
+        } catch (err) {
+          byId('ticketTitle').textContent = '티켓을 찾을 수 없습니다';
+          byId('ticketMeta').textContent = '';
+          log(err.message, true);
+        }
+      };
+
+      byId('loadBtn').onclick = () => loadTicket(byId('tokenInput').value.trim());
+
+      const token = params.get('token');
+      if (token) {
+        byId('tokenInput').value = token;
+        loadTicket(token);
+      }
+    </script>
+  </body>
+</html>

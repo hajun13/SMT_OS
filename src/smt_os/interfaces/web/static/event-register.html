@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>행사 등록 | S.M.T</title>
+    <link rel="manifest" href="/assets/app.webmanifest" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <a href="/" class="brand"><span class="brand-mark">S</span> 참가자 등록</a>
+        <nav class="nav">
+          <a id="landingLink" href="#">행사 안내</a>
+          <a id="ticketLink" href="#">티켓 조회</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <span class="eyebrow">Registration</span>
+        <h1 id="eventTitle">행사 정보를 불러오는 중</h1>
+        <p class="sub" id="eventMeta"></p>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h3>기본 정보</h3>
+          <span class="pill">필수</span>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="applicant">신청자 이름</label>
+            <input id="applicant" placeholder="홍길동" />
+          </div>
+          <div>
+            <label for="participant">참가자 이름</label>
+            <input id="participant" placeholder="홍학생" />
+          </div>
+          <div>
+            <label for="church">교회/학교</label>
+            <input id="church" placeholder="서중한합회" />
+          </div>
+          <div>
+            <label for="grade">학년</label>
+            <input id="grade" placeholder="11" />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h3>추가 질문</h3>
+          <span class="pill">동적 필드</span>
+        </div>
+        <div id="dynamicFields" class="form-row dynamic"></div>
+        <p class="footer-note" id="log">입력 후 등록 완료 버튼을 눌러주세요.</p>
+      </section>
+    </main>
+
+    <div class="mobile-dock">
+      <div class="dock-grid single">
+        <button class="btn btn-primary" id="submitBtn">등록 완료</button>
+      </div>
+    </div>
+
+    <script>
+      const slug = window.location.pathname.split('/')[2];
+      let eventId = null;
+      let fields = [];
+      const byId = (id) => document.getElementById(id);
+
+      byId('landingLink').href = `/e/${slug}`;
+      byId('ticketLink').href = `/e/${slug}/ticket`;
+
+      const log = (message, error = false) => {
+        const el = byId('log');
+        el.textContent = message;
+        el.style.color = error ? 'var(--alert)' : 'var(--ink-soft)';
+      };
+
+      const renderDynamicFields = () => {
+        const container = byId('dynamicFields');
+        const rendered = fields
+          .filter((f) => !['grade', 'church_or_school'].includes(f.key))
+          .map((f) => {
+            const requiredMark = f.required ? ' *' : '';
+            return `
+              <div>
+                <label for="field_${f.key}">${f.label}${requiredMark}</label>
+                <input id="field_${f.key}" placeholder="${f.label}" />
+              </div>
+            `;
+          })
+          .join('');
+        container.innerHTML = rendered || '<p class="muted">추가 질문이 없습니다.</p>';
+      };
+
+      const fetchForm = async () => {
+        if (!eventId) return;
+        const res = await fetch(`/api/public/events/${eventId}/registration-form`);
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(body.detail || '등록폼 조회 실패');
+        }
+        fields = body;
+        renderDynamicFields();
+      };
+
+      fetch(`/api/public/events/${slug}`)
+        .then(async (res) => {
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.detail || '행사 조회 실패');
+          return body;
+        })
+        .then(async (event) => {
+          eventId = event.id;
+          byId('eventTitle').textContent = `${event.title} 등록`;
+          byId('eventMeta').textContent = `${event.template} · 정원 ${event.capacity}명`;
+          await fetchForm();
+        })
+        .catch((err) => {
+          byId('eventTitle').textContent = '행사를 찾을 수 없습니다';
+          log(err.message, true);
+        });
+
+      byId('submitBtn').onclick = async () => {
+        try {
+          if (!eventId) throw new Error('행사 정보가 없습니다.');
+
+          const answers = {
+            grade: byId('grade').value,
+            church_or_school: byId('church').value,
+          };
+
+          fields
+            .filter((f) => !['grade', 'church_or_school'].includes(f.key))
+            .forEach((f) => {
+              answers[f.key] = byId(`field_${f.key}`)?.value || '';
+            });
+
+          const res = await fetch('/api/participants/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_id: eventId,
+              applicant_name: byId('applicant').value,
+              participant_name: byId('participant').value,
+              kind: 'individual',
+              church_or_school: byId('church').value,
+              grade: byId('grade').value,
+              answers,
+            }),
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.detail || '등록 실패');
+
+          const next = `/e/${slug}/ticket?token=${encodeURIComponent(body.ticket.token)}`;
+          window.location.href = next;
+        } catch (err) {
+          log(err.message, true);
+        }
+      };
+    </script>
+  </body>
+</html>
