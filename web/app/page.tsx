@@ -101,7 +101,7 @@ export default function HomePage() {
     <AppFrame brand={BRAND_NAME} nav={nav}>
       <section className="mb-3 rounded-2xl border border-border bg-white px-4 py-5">
         <p className="text-xs font-medium text-muted-foreground">{BRAND_KO}</p>
-        <h1 className="mt-1 text-xl font-semibold">DoDream 운영 콘솔</h1>
+        <h1 className="mt-1 text-xl font-semibold">운영 콘솔</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {!authResolved
             ? "권한을 확인하고 있습니다."
