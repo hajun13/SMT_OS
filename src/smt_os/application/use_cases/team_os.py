@@ -12,6 +12,10 @@ class TeamEventNotFoundError(ValueError):
     pass
 
 
+class TeamItemNotFoundError(ValueError):
+    pass
+
+
 @dataclass(slots=True)
 class CreateMeetingCommand:
     org_id: str
@@ -71,6 +75,11 @@ class TeamOSUseCase:
     def list_meetings(self, org_id: str) -> list[Meeting]:
         return self._team.list_meetings(org_id)
 
+    def delete_meeting(self, meeting_id: str) -> None:
+        deleted = self._team.delete_meeting(meeting_id)
+        if not deleted:
+            raise TeamItemNotFoundError("meeting not found")
+
     def add_meeting_note(self, command: CreateMeetingNoteCommand) -> MeetingNote:
         note = MeetingNote(
             id=str(uuid4()),
@@ -99,6 +108,11 @@ class TeamOSUseCase:
 
     def list_action_items(self, org_id: str, status: str | None = None) -> list[ActionItem]:
         return self._team.list_action_items(org_id, status=status)
+
+    def delete_action_item(self, action_item_id: str) -> None:
+        deleted = self._team.delete_action_item(action_item_id)
+        if not deleted:
+            raise TeamItemNotFoundError("action item not found")
 
     def create_document(self, command: CreateDocumentCommand) -> TeamDocument:
         self._ensure_event(command.event_id)
@@ -139,3 +153,8 @@ class TeamOSUseCase:
 
     def list_documents(self, org_id: str, kind: str | None = None) -> list[TeamDocument]:
         return self._team.list_documents(org_id, kind=kind)
+
+    def delete_document(self, document_id: str) -> None:
+        deleted = self._team.delete_document(document_id)
+        if not deleted:
+            raise TeamItemNotFoundError("document not found")

@@ -222,6 +222,11 @@ class InMemoryTeamRepository(TeamRepository):
         items = [m for m in self._meetings.values() if m.org_id == org_id]
         return sorted(items, key=lambda x: x.started_at, reverse=True)
 
+    def delete_meeting(self, meeting_id: str) -> bool:
+        removed = self._meetings.pop(meeting_id, None)
+        self._meeting_notes.pop(meeting_id, None)
+        return removed is not None
+
     def save_meeting_note(self, note: MeetingNote) -> None:
         bucket = self._meeting_notes.setdefault(note.meeting_id, [])
         bucket.append(note)
@@ -238,6 +243,9 @@ class InMemoryTeamRepository(TeamRepository):
             items = [a for a in items if a.status == status]
         return sorted(items, key=lambda x: x.created_at, reverse=True)
 
+    def delete_action_item(self, action_item_id: str) -> bool:
+        return self._action_items.pop(action_item_id, None) is not None
+
     def save_document(self, doc: TeamDocument) -> None:
         self._documents[doc.id] = doc
 
@@ -246,3 +254,6 @@ class InMemoryTeamRepository(TeamRepository):
         if kind:
             items = [d for d in items if d.kind == kind]
         return sorted(items, key=lambda x: x.created_at, reverse=True)
+
+    def delete_document(self, document_id: str) -> bool:
+        return self._documents.pop(document_id, None) is not None

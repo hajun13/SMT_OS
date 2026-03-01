@@ -299,6 +299,24 @@ def test_team_os_meeting_action_items_documents() -> None:
     assert meetings.status_code == 200
     assert any(item["id"] == meeting_id for item in meetings.json())
 
+    meeting_delete = client.delete(f"/api/team/meetings/{meeting_id}", headers=_staff_headers())
+    assert meeting_delete.status_code == 200
+    meetings_after_delete = client.get("/api/team/meetings", headers=_staff_headers(), params={"org_id": "org-1"})
+    assert meetings_after_delete.status_code == 200
+    assert all(item["id"] != meeting_id for item in meetings_after_delete.json())
+
+    meeting = client.post(
+        "/api/team/meetings",
+        headers=_staff_headers(),
+        json={
+            "org_id": "org-1",
+            "title": "운영 주간 회의",
+            "started_at": "2026-07-01T10:00:00Z",
+        },
+    )
+    assert meeting.status_code == 200
+    meeting_id = meeting.json()["id"]
+
     note = client.post(
         f"/api/team/meetings/{meeting_id}/notes",
         headers=_staff_headers(),
@@ -322,6 +340,7 @@ def test_team_os_meeting_action_items_documents() -> None:
         },
     )
     assert open_item.status_code == 200
+    open_item_id = open_item.json()["id"]
 
     done_item = client.post(
         "/api/team/action-items",
@@ -345,6 +364,16 @@ def test_team_os_meeting_action_items_documents() -> None:
     assert len(open_items.json()) == 1
     assert open_items.json()[0]["status"] == "open"
 
+    action_delete = client.delete(f"/api/team/action-items/{open_item_id}", headers=_staff_headers())
+    assert action_delete.status_code == 200
+    open_items_after_delete = client.get(
+        "/api/team/action-items",
+        headers=_staff_headers(),
+        params={"org_id": "org-1", "status": "open"},
+    )
+    assert open_items_after_delete.status_code == 200
+    assert len(open_items_after_delete.json()) == 0
+
     doc = client.post(
         "/api/team/documents",
         headers=_staff_headers(),
@@ -358,6 +387,7 @@ def test_team_os_meeting_action_items_documents() -> None:
         },
     )
     assert doc.status_code == 200
+    doc_id = doc.json()["id"]
 
     docs = client.get(
         "/api/team/documents",
@@ -367,6 +397,16 @@ def test_team_os_meeting_action_items_documents() -> None:
     assert docs.status_code == 200
     assert len(docs.json()) == 1
     assert docs.json()[0]["title"] == "캠프 운영 가이드"
+
+    doc_delete = client.delete(f"/api/team/documents/{doc_id}", headers=_staff_headers())
+    assert doc_delete.status_code == 200
+    docs_after_delete = client.get(
+        "/api/team/documents",
+        headers=_staff_headers(),
+        params={"org_id": "org-1", "kind": "guide"},
+    )
+    assert docs_after_delete.status_code == 200
+    assert len(docs_after_delete.json()) == 0
 
 
 def test_checkin_by_participant_api() -> None:

@@ -51,6 +51,7 @@ from smt_os.application.use_cases.team_os import (
     CreateMeetingCommand,
     CreateMeetingNoteCommand,
     TeamEventNotFoundError,
+    TeamItemNotFoundError,
     TeamOSUseCase,
 )
 from smt_os.application.use_cases.update_participant_answers import (
@@ -865,6 +866,17 @@ def build_router(services: Services) -> APIRouter:
             for m in meetings
         ]
 
+    @router.delete("/api/team/meetings/{meeting_id}")
+    def delete_meeting(
+        meeting_id: str,
+        _: str = Depends(require_roles("org_admin", "event_admin", "staff")),
+    ) -> dict[str, object]:
+        try:
+            services.team_os.delete_meeting(meeting_id)
+        except TeamItemNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"deleted": True}
+
     @router.post("/api/team/meetings/{meeting_id}/notes")
     def create_meeting_note(
         meeting_id: str,
@@ -948,6 +960,17 @@ def build_router(services: Services) -> APIRouter:
             for item in items
         ]
 
+    @router.delete("/api/team/action-items/{action_item_id}")
+    def delete_action_item(
+        action_item_id: str,
+        _: str = Depends(require_roles("org_admin", "event_admin", "staff")),
+    ) -> dict[str, object]:
+        try:
+            services.team_os.delete_action_item(action_item_id)
+        except TeamItemNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"deleted": True}
+
     @router.post("/api/team/documents")
     def create_document(
         payload: CreateTeamDocumentRequest,
@@ -995,6 +1018,17 @@ def build_router(services: Services) -> APIRouter:
             }
             for doc in docs
         ]
+
+    @router.delete("/api/team/documents/{document_id}")
+    def delete_document(
+        document_id: str,
+        _: str = Depends(require_roles("org_admin", "event_admin", "staff")),
+    ) -> dict[str, object]:
+        try:
+            services.team_os.delete_document(document_id)
+        except TeamItemNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"deleted": True}
 
     @router.get("/api/public/tickets/{token}")
     def get_public_ticket(token: str) -> dict[str, str]:

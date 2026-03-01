@@ -22,7 +22,7 @@ type ReportSummary = {
   survey_average_rating: number | null;
 };
 type MeetingItem = { id: string; title: string; started_at: string };
-type ActionItem = { id: string; title: string; status: string; department: string | null };
+type ActionItem = { id: string; title: string; status: string; department: string | null; due_at?: string | null };
 type TeamDocument = { id: string; title: string; version: number };
 type PublicParticipantInfo = { title: string; content: string };
 type RoleKey = "student" | "teacher" | "evangelist" | "pastor" | "unknown";
@@ -102,12 +102,6 @@ function scopeToDepartment(scope: CreateScope): string | null {
   return TEAM_META[scope].department;
 }
 
-function matchesScope(itemScope: TeamScope, viewScope: TeamScope): boolean {
-  if (viewScope === "all") return true;
-  if (viewScope === "common") return itemScope === "common";
-  return itemScope === "common" || itemScope === viewScope;
-}
-
 function roleToKey(role: string | null): RoleKey {
   if (role === "student") return "student";
   if (role === "teacher") return "teacher";
@@ -125,6 +119,16 @@ function teamToScope(team: string | null): CreateScope {
   return "common";
 }
 
+function toDateTimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -135,7 +139,6 @@ export default function AdminPage() {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [docs, setDocs] = useState<TeamDocument[]>([]);
 
-  const [viewScope, setViewScope] = useState<TeamScope>("all");
   const [createScope, setCreateScope] = useState<CreateScope>("common");
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
 
@@ -143,7 +146,9 @@ export default function AdminPage() {
   const [groupCount, setGroupCount] = useState("5");
   const [groupCapacity, setGroupCapacity] = useState("20");
   const [meetingTitle, setMeetingTitle] = useState("운영 점검 회의");
+  const [meetingAtLocal, setMeetingAtLocal] = useState(() => toDateTimeLocalValue(new Date()));
   const [actionTitle, setActionTitle] = useState("현장 안내 배너 점검");
+  const [actionDueAtLocal, setActionDueAtLocal] = useState("");
   const [docTitle, setDocTitle] = useState("현장 운영 노트");
   const [docContent, setDocContent] = useState("입장 동선, 안전 공지, 담당자 연락처");
   const [noticeTitle, setNoticeTitle] = useState("행사 공지");
@@ -171,46 +176,65 @@ export default function AdminPage() {
     return Math.round((report.checked_in_count / report.registered_count) * 100);
   }, [report]);
 
-  const meetingItems = useMemo(() => {
-    return meetings
-      .filter((m) => matchesScope(parseScopeFromTitle(m.title), viewScope))
-      .map((m) => {
-        const scope = parseScopeFromTitle(m.title);
-        return `${scopeLabel(scope)} · ${stripScopePrefix(m.title)}`;
-      });
-  }, [meetings, viewScope]);
-
-  const actionItems = useMemo(() => {
-    return actions
-      .filter((a) => matchesScope(departmentToScope(a.department), viewScope))
-      .map((a) => {
-        const scope = departmentToScope(a.department);
-        return `${scopeLabel(scope)} · ${a.title} · ${a.status}`;
-      });
-  }, [actions, viewScope]);
-
-  const documentItems = useMemo(() => {
-    return docs
-      .filter((d) => matchesScope(parseScopeFromTitle(d.title), viewScope))
-      .map((d) => {
-        const scope = parseScopeFromTitle(d.title);
-        return `${scopeLabel(scope)} · ${stripScopePrefix(d.title)} (v${d.version})`;
-      });
-  }, [docs, viewScope]);
-
   const refundRequests = useMemo(() => {
     return participantRows.filter((row) => row.refund_status === "pending");
   }, [participantRows]);
   const isSuperAdmin = Boolean(currentUser?.is_super_admin);
-  const isTeamScoped = Boolean(currentUser && !currentUser.can_approve);
   const isTeamLead = Boolean(currentUser?.is_team_lead);
   const teamScopedValue = teamToScope(currentUser?.team ?? null);
   const overviewScopes = useMemo(() => {
-    if (!isTeamScoped) return OVERVIEW_SCOPES;
+    if (isSuperAdmin) return OVERVIEW_SCOPES;
     const scopes: CreateScope[] = ["common"];
     if (teamScopedValue !== "common") scopes.push(teamScopedValue);
     return scopes;
-  }, [isTeamScoped, teamScopedValue]);
+  }, [isSuperAdmin, teamScopedValue]);
+
+  const readableScopes = useMemo<TeamScope[]>(() => {
+    if (isSuperAdmin) return ["common", "ops", "planning", "education", "life", "promo"];
+    if (teamScopedValue === "common") return ["common"];
+    return ["common", teamScopedValue];
+  }, [isSuperAdmin, teamScopedValue]);
+
+  const meetingItems = useMemo(() => {
+    return meetings
+      .filter((m) => readableScopes.includes(parseScopeFromTitle(m.title)))
+      .map((m) => {
+        const scope = parseScopeFromTitle(m.title);
+        return `${scopeLabel(scope)} · ${stripScopePrefix(m.title)}`;
+      });
+  }, [meetings, readableScopes]);
+
+  const actionItems = useMemo(() => {
+    return actions
+      .filter((a) => readableScopes.includes(departmentToScope(a.department)))
+      .map((a) => {
+        const scope = departmentToScope(a.department);
+        const dueText = a.due_at ? new Date(a.due_at).toLocaleDateString("ko-KR") : "기한 없음";
+        return `${scopeLabel(scope)} · ${a.title} · ${a.status} · ${dueText}`;
+      });
+  }, [actions, readableScopes]);
+
+  const documentItems = useMemo(() => {
+    return docs
+      .filter((d) => readableScopes.includes(parseScopeFromTitle(d.title)))
+      .map((d) => {
+        const scope = parseScopeFromTitle(d.title);
+        return `${scopeLabel(scope)} · ${stripScopePrefix(d.title)} (v${d.version})`;
+      });
+  }, [docs, readableScopes]);
+
+  const visibleMeetings = useMemo(
+    () => meetings.filter((m) => readableScopes.includes(parseScopeFromTitle(m.title))),
+    [meetings, readableScopes],
+  );
+  const visibleActions = useMemo(
+    () => actions.filter((a) => readableScopes.includes(departmentToScope(a.department))),
+    [actions, readableScopes],
+  );
+  const visibleDocs = useMemo(
+    () => docs.filter((d) => readableScopes.includes(parseScopeFromTitle(d.title))),
+    [docs, readableScopes],
+  );
 
   const teamOverviewCards = useMemo(() => {
     return overviewScopes.map((scope) => {
@@ -229,12 +253,9 @@ export default function AdminPage() {
     });
   }, [overviewScopes, meetings, actions, docs]);
 
-  const allowedViewScopeOptions = isTeamScoped
-    ? VIEW_SCOPE_OPTIONS.filter((item) => item.value === "common" || item.value === teamScopedValue)
-    : VIEW_SCOPE_OPTIONS;
-  const allowedCreateScopeOptions = isTeamScoped
-    ? CREATE_SCOPE_OPTIONS.filter((item) => item.value === teamScopedValue)
-    : CREATE_SCOPE_OPTIONS;
+  const allowedCreateScopeOptions = isSuperAdmin
+    ? CREATE_SCOPE_OPTIONS
+    : CREATE_SCOPE_OPTIONS.filter((item) => item.value === "common" || item.value === teamScopedValue);
   const sectionTabs = useMemo(() => {
     const tabs: { key: AdminSection; label: string }[] = [
       { key: "overview", label: "핵심 현황" },
@@ -419,13 +440,15 @@ export default function AdminPage() {
 
   const addMeeting = () =>
     runTask(async () => {
+      const startedAt = meetingAtLocal ? new Date(meetingAtLocal) : new Date();
+      if (Number.isNaN(startedAt.getTime())) throw new Error("회의 날짜/시간을 다시 선택하세요.");
       await api("/api/team/meetings", {
         method: "POST",
         headers: roleHeader(ROLE),
         json: {
           org_id: ORG_ID,
           title: prefixedTitle(createScope, meetingTitle),
-          started_at: new Date().toISOString(),
+          started_at: startedAt.toISOString(),
         },
       });
       await loadTeam();
@@ -441,6 +464,7 @@ export default function AdminPage() {
           org_id: ORG_ID,
           title: actionTitle,
           department: scopeToDepartment(createScope),
+          due_at: actionDueAtLocal ? new Date(actionDueAtLocal).toISOString() : null,
           status: "open",
           event_id: eventId || null,
         },
@@ -465,6 +489,36 @@ export default function AdminPage() {
       });
       await loadTeam();
       setLog(`${scopeLabel(createScope)} 운영 노트를 저장했습니다.`);
+    });
+
+  const removeMeeting = (meetingId: string) =>
+    runTask(async () => {
+      await api(`/api/team/meetings/${meetingId}`, {
+        method: "DELETE",
+        headers: roleHeader(ROLE),
+      });
+      await loadTeam();
+      setLog("회의를 삭제했습니다.");
+    });
+
+  const removeActionItem = (actionItemId: string) =>
+    runTask(async () => {
+      await api(`/api/team/action-items/${actionItemId}`, {
+        method: "DELETE",
+        headers: roleHeader(ROLE),
+      });
+      await loadTeam();
+      setLog("할 일을 삭제했습니다.");
+    });
+
+  const removeDocument = (documentId: string) =>
+    runTask(async () => {
+      await api(`/api/team/documents/${documentId}`, {
+        method: "DELETE",
+        headers: roleHeader(ROLE),
+      });
+      await loadTeam();
+      setLog("운영 노트를 삭제했습니다.");
     });
 
   const addNotice = () =>
@@ -550,7 +604,6 @@ export default function AdminPage() {
         }
         setCurrentUser(me);
         const teamScope = teamToScope(me.team);
-        setViewScope(teamScope);
         setCreateScope(teamScope);
         if (me.is_super_admin) {
           const pending = await api<{ id: string; email: string; name: string; account_type: "ministry" | "leader"; leader_role: string | null; church_or_school: string | null; team: string | null; status: "pending" | "approved" | "rejected"; can_approve: boolean; is_team_lead: boolean; is_super_admin: boolean; }[]>("/api/auth/approvals");
@@ -588,6 +641,12 @@ export default function AdminPage() {
       setActiveSection("overview");
     }
   }, [sectionTabs, activeSection]);
+
+  useEffect(() => {
+    if (!allowedCreateScopeOptions.some((item) => item.value === createScope)) {
+      setCreateScope("common");
+    }
+  }, [allowedCreateScopeOptions, createScope]);
 
   const decideApproval = (userId: string, approve: boolean) =>
     runTask(async () => {
@@ -724,6 +783,12 @@ export default function AdminPage() {
                 docCount={card.docCount}
               />
             ))}
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-3">
+            <InfoList title="최근 회의" items={meetingItems} />
+            <InfoList title="할 일" items={actionItems} />
+            <InfoList title="운영 노트" items={documentItems} />
           </div>
 
           <div className="flex gap-2">
@@ -946,45 +1011,35 @@ export default function AdminPage() {
           <CardTitle>팀 운영</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <p className="text-xs text-muted-foreground">보기 범위</p>
-              <Select value={viewScope} onValueChange={(value) => setViewScope(value as TeamScope)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="보기 범위 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedViewScopeOptions.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-1.5">
-              <p className="text-xs text-muted-foreground">등록 범위</p>
-              <Select value={createScope} onValueChange={(value) => setCreateScope(value as CreateScope)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="등록 범위 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedCreateScopeOptions.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-1.5">
+            <p className="text-xs text-muted-foreground">등록 범위</p>
+            <Select value={createScope} onValueChange={(value) => setCreateScope(value as CreateScope)}>
+              <SelectTrigger>
+                <SelectValue placeholder="등록 범위 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedCreateScopeOptions.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Input value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} placeholder="회의 제목" />
+            <Input type="datetime-local" value={meetingAtLocal} onChange={(e) => setMeetingAtLocal(e.target.value)} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <Button variant="secondary" onClick={addMeeting} disabled={busy} className="h-11 rounded-xl">
               <CalendarPlus className="mr-2 h-4 w-4" />회의 추가
             </Button>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="할 일" />
+            <Input type="datetime-local" value={actionDueAtLocal} onChange={(e) => setActionDueAtLocal(e.target.value)} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <Button variant="secondary" onClick={addAction} disabled={busy} className="h-11 rounded-xl">
               할 일 추가
             </Button>
@@ -999,13 +1054,40 @@ export default function AdminPage() {
           </div>
 
           <div className="rounded-xl border border-dashed border-border bg-white px-3 py-2 text-xs text-muted-foreground">
-            현재 보기: <span className="font-medium text-foreground">{scopeLabel(viewScope)}</span> · 등록 시 적용: <span className="font-medium text-foreground">{scopeLabel(createScope)}</span>
+            등록 시 적용: <span className="font-medium text-foreground">{scopeLabel(createScope)}</span>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-3">
-            <InfoList title="최근 회의" items={meetingItems} />
-            <InfoList title="할 일" items={actionItems} />
-            <InfoList title="운영 노트" items={documentItems} />
+            <ManageList
+              title="최근 회의"
+              items={visibleMeetings.map((m) => ({
+                id: m.id,
+                text: `${scopeLabel(parseScopeFromTitle(m.title))} · ${stripScopePrefix(m.title)}`,
+              }))}
+              onDelete={removeMeeting}
+              busy={busy}
+              emptyText="회의가 없습니다."
+            />
+            <ManageList
+              title="할 일"
+              items={visibleActions.map((a) => ({
+                id: a.id,
+                text: `${scopeLabel(departmentToScope(a.department))} · ${a.title} · ${a.status}`,
+              }))}
+              onDelete={removeActionItem}
+              busy={busy}
+              emptyText="할 일이 없습니다."
+            />
+            <ManageList
+              title="운영 노트"
+              items={visibleDocs.map((d) => ({
+                id: d.id,
+                text: `${scopeLabel(parseScopeFromTitle(d.title))} · ${stripScopePrefix(d.title)} (v${d.version})`,
+              }))}
+              onDelete={removeDocument}
+              busy={busy}
+              emptyText="운영 노트가 없습니다."
+            />
           </div>
         </CardContent>
       </Card>
@@ -1039,6 +1121,46 @@ function InfoList({ title, items }: { title: string; items: string[] }) {
           <li key={`${title}-${index}`}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function ManageList({
+  title,
+  items,
+  onDelete,
+  busy,
+  emptyText,
+}: {
+  title: string;
+  items: { id: string; text: string }[];
+  onDelete: (id: string) => void;
+  busy: boolean;
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-white p-3">
+      <p className="text-sm font-semibold">{title}</p>
+      <div className="mt-2 space-y-2">
+        {items.length ? (
+          items.slice(0, 8).map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2 py-1.5">
+              <p className="text-xs text-muted-foreground">{item.text}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-7 rounded-md px-2 text-xs text-destructive"
+                disabled={busy}
+                onClick={() => onDelete(item.id)}
+              >
+                삭제
+              </Button>
+            </div>
+          ))
+        ) : (
+          <p className="text-xs text-muted-foreground">{emptyText}</p>
+        )}
+      </div>
     </div>
   );
 }
