@@ -48,7 +48,7 @@ from smt_os.interfaces.web.router import STATIC_DIR, router as web_router
 def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository) -> None:
     default_events = [
         Event(
-            id="event-spring-festival-2026",
+            id="f8f79bb4-f1c9-48ad-b8ba-8ec15189a2b1",
             org_id="org-1",
             slug="spring-festival-2026",
             title="춘계 페스티벌 2026",
@@ -59,7 +59,7 @@ def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository) -
             modules=EventModules(seats=False, meals=True, groups=True, activities=True),
         ),
         Event(
-            id="event-summer-camp-2026",
+            id="7bc5fcb4-bd44-4a28-a8fe-faf159fbd6af",
             org_id="org-1",
             slug="summer-camp-2026",
             title="여름 캠프 2026",
