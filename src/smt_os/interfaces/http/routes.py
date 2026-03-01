@@ -474,7 +474,11 @@ def build_router(services: Services) -> APIRouter:
             for member in team["members"]:  # type: ignore[index]
                 names.append(str(member["name"]))  # type: ignore[index]
 
-        images = get_profile_images_by_name(names)
+        try:
+            images = get_profile_images_by_name(names)
+        except Exception:
+            # 조직도는 사진 조회 실패 시에도 텍스트 정보는 내려준다.
+            images = {}
         result: list[dict[str, object]] = []
         for team in ORG_CHART_MEMBERS:
             members = []

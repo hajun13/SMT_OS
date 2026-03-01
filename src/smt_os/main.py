@@ -26,6 +26,7 @@ from smt_os.application.use_cases.upsert_registration_form import (
     UpsertRegistrationFormCommand,
     UpsertRegistrationFormUseCase,
 )
+from smt_os.application.ports.repositories import EventRepository, RegistrationFormRepository
 from smt_os.config import get_settings, is_placeholder
 from smt_os.domain.common.enums import EventTemplate, FieldType
 from smt_os.domain.events.entities import Event, EventModules
@@ -44,7 +45,7 @@ from smt_os.interfaces.http.routes import Services, build_router
 from smt_os.interfaces.web.router import STATIC_DIR, router as web_router
 
 
-def _seed_defaults(events: InMemoryEventRepository, forms: InMemoryRegistrationFormRepository) -> None:
+def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository) -> None:
     default_events = [
         Event(
             id="event-spring-festival-2026",
@@ -183,6 +184,7 @@ def _build_postgres_services(db_url: str) -> Services:
     tickets = PostgresTicketRepository(session_factory)
     checkins = PostgresCheckinRepository(session_factory)
     forms = PostgresRegistrationFormRepository(session_factory)
+    _seed_defaults(events, forms)
 
     class _NoopAssignmentRepo:
         def replace_meal_slots(self, event_id: str, slots: list[object]) -> None:
@@ -312,9 +314,11 @@ def create_app() -> FastAPI:
             "http://localhost:3000",
             "http://127.0.0.1:3000",
         ]
+    allow_origin_regex = os.getenv("CORS_ALLOWED_ORIGIN_REGEX", "").strip() or r"https://.*\.vercel\.app"
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins,
+        allow_origin_regex=allow_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
