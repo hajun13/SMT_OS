@@ -200,35 +200,6 @@ export default function AdminPage() {
     return ["common", teamScopedValue];
   }, [isSuperAdmin, teamScopedValue]);
 
-  const meetingItems = useMemo(() => {
-    return meetings
-      .filter((m) => readableScopes.includes(parseScopeFromTitle(m.title)))
-      .map((m) => {
-        const scope = parseScopeFromTitle(m.title);
-        return `${scopeLabel(scope)} · ${stripScopePrefix(m.title)} · ${formatDateLabel(m.started_at)}`;
-      });
-  }, [meetings, readableScopes]);
-
-  const actionItems = useMemo(() => {
-    return actions
-      .filter((a) => readableScopes.includes(departmentToScope(a.department)))
-      .map((a) => {
-        const scope = departmentToScope(a.department);
-        const dueText = formatDateLabel(a.due_at);
-        return `${scopeLabel(scope)} · ${a.title} · ${a.status} · ${dueText}`;
-      });
-  }, [actions, readableScopes]);
-
-  const documentItems = useMemo(() => {
-    return docs
-      .filter((d) => readableScopes.includes(parseScopeFromTitle(d.title)))
-      .map((d) => {
-        const scope = parseScopeFromTitle(d.title);
-        const preview = (d.content || "").trim();
-        return `${scopeLabel(scope)} · ${stripScopePrefix(d.title)} (v${d.version})${preview ? ` · ${preview}` : ""}`;
-      });
-  }, [docs, readableScopes]);
-
   const visibleMeetings = useMemo(
     () => meetings.filter((m) => readableScopes.includes(parseScopeFromTitle(m.title))),
     [meetings, readableScopes],
@@ -792,12 +763,6 @@ export default function AdminPage() {
             ))}
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3">
-            <InfoList title="최근 회의" items={meetingItems} />
-            <InfoList title="할 일" items={actionItems} />
-            <InfoList title="운영 노트" items={documentItems} />
-          </div>
-
           <div className="flex gap-2">
             <Button onClick={refreshAll} disabled={busy} className="h-11 flex-1 rounded-xl">
               최신으로 새로고침
@@ -1066,38 +1031,6 @@ export default function AdminPage() {
             등록 시 적용: <span className="font-medium text-foreground">{scopeLabel(createScope)}</span>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3">
-            <ManageList
-              title="최근 회의"
-              items={visibleMeetings.map((m) => ({
-                id: m.id,
-                text: `${scopeLabel(parseScopeFromTitle(m.title))} · ${stripScopePrefix(m.title)}`,
-              }))}
-              onDelete={removeMeeting}
-              busy={busy}
-              emptyText="회의가 없습니다."
-            />
-            <ManageList
-              title="할 일"
-              items={visibleActions.map((a) => ({
-                id: a.id,
-                text: `${scopeLabel(departmentToScope(a.department))} · ${a.title} · ${a.status}`,
-              }))}
-              onDelete={removeActionItem}
-              busy={busy}
-              emptyText="할 일이 없습니다."
-            />
-            <ManageList
-              title="운영 노트"
-              items={visibleDocs.map((d) => ({
-                id: d.id,
-                text: `${scopeLabel(parseScopeFromTitle(d.title))} · ${stripScopePrefix(d.title)} (v${d.version})`,
-              }))}
-              onDelete={removeDocument}
-              busy={busy}
-              emptyText="운영 노트가 없습니다."
-            />
-          </div>
         </CardContent>
       </Card>
       ) : null}
@@ -1188,59 +1121,6 @@ function Metric({ icon: Icon, label, value }: { icon: typeof Users; label: strin
         <p className="text-xs">{label}</p>
       </div>
       <p className="mt-1 text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function InfoList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-xl border border-border bg-white p-3">
-      <p className="text-sm font-semibold">{title}</p>
-      <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-        {(items.length ? items.slice(0, 6) : ["아직 없음"]).map((item, index) => (
-          <li key={`${title}-${index}`}>{item}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ManageList({
-  title,
-  items,
-  onDelete,
-  busy,
-  emptyText,
-}: {
-  title: string;
-  items: { id: string; text: string }[];
-  onDelete: (id: string) => void;
-  busy: boolean;
-  emptyText: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-white p-3">
-      <p className="text-sm font-semibold">{title}</p>
-      <div className="mt-2 space-y-2">
-        {items.length ? (
-          items.slice(0, 8).map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2 py-1.5">
-              <p className="text-xs text-muted-foreground">{item.text}</p>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-7 rounded-md px-2 text-xs text-destructive"
-                disabled={busy}
-                onClick={() => onDelete(item.id)}
-              >
-                삭제
-              </Button>
-            </div>
-          ))
-        ) : (
-          <p className="text-xs text-muted-foreground">{emptyText}</p>
-        )}
-      </div>
     </div>
   );
 }
