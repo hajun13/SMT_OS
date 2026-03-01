@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { canAccessAdmin, canAccessLeader, setToken, type SessionUser } from "@/lib/auth";
+import { canAccessAdmin, canAccessLeader, setCachedUser, setToken, type SessionUser } from "@/lib/auth";
 import { BRAND_NAME } from "@/lib/brand";
 
 export default function LoginPage() {
@@ -28,6 +28,7 @@ export default function LoginPage() {
         json: { email, password },
       });
       setToken(res.token);
+      setCachedUser(res.user);
 
       if (canAccessAdmin(res.user)) {
         router.replace("/admin");

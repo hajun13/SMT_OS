@@ -7,12 +7,16 @@ import { ChevronRight, ClipboardList, TicketCheck, UserRound, Users } from "luci
 import { AppFrame } from "@/components/shared/app-frame";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchMe, getToken, type SessionUser } from "@/lib/auth";
+import { fetchMe, getCachedUser, getToken, type SessionUser } from "@/lib/auth";
 import { BRAND_KO, BRAND_NAME } from "@/lib/brand";
 
 export default function HomePage() {
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [authResolved, setAuthResolved] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(() => getCachedUser());
+  const [authResolved, setAuthResolved] = useState(() => {
+    const token = getToken();
+    if (!token) return true;
+    return getCachedUser() !== null;
+  });
 
   useEffect(() => {
     void (async () => {

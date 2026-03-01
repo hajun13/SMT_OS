@@ -29,6 +29,7 @@ type RoleKey = "student" | "teacher" | "evangelist" | "pastor" | "unknown";
 
 type TeamScope = "all" | "common" | "ops" | "planning" | "education" | "life" | "promo";
 type CreateScope = Exclude<TeamScope, "all">;
+type AdminSection = "overview" | "operations" | "team" | "approvals" | "team-leads" | "refunds";
 
 const ROLE = "event_admin";
 const ORG_ID = "org-1";
@@ -136,6 +137,7 @@ export default function AdminPage() {
 
   const [viewScope, setViewScope] = useState<TeamScope>("all");
   const [createScope, setCreateScope] = useState<CreateScope>("common");
+  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
 
   const [newEventTitle, setNewEventTitle] = useState("봄 청소년 캠프");
   const [groupCount, setGroupCount] = useState("5");
@@ -233,6 +235,21 @@ export default function AdminPage() {
   const allowedCreateScopeOptions = isTeamScoped
     ? CREATE_SCOPE_OPTIONS.filter((item) => item.value === teamScopedValue)
     : CREATE_SCOPE_OPTIONS;
+  const sectionTabs = useMemo(() => {
+    const tabs: { key: AdminSection; label: string }[] = [
+      { key: "overview", label: "핵심 현황" },
+      { key: "operations", label: "운영 액션" },
+      { key: "team", label: "팀 운영" },
+    ];
+    if (isSuperAdmin) {
+      tabs.push({ key: "approvals", label: "가입 승인" });
+      tabs.push({ key: "team-leads", label: "팀장 권한" });
+    }
+    if (isTeamLead) {
+      tabs.push({ key: "refunds", label: "환불 승인" });
+    }
+    return tabs;
+  }, [isSuperAdmin, isTeamLead]);
 
   const runTask = async (task: () => Promise<void>) => {
     try {
@@ -566,6 +583,12 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, authReady]);
 
+  useEffect(() => {
+    if (!sectionTabs.some((tab) => tab.key === activeSection)) {
+      setActiveSection("overview");
+    }
+  }, [sectionTabs, activeSection]);
+
   const decideApproval = (userId: string, approve: boolean) =>
     runTask(async () => {
       await api(`/api/auth/approvals/${userId}`, {
@@ -616,14 +639,24 @@ export default function AdminPage() {
         { href: "/leader", label: "지도교사", note: "등록/납부/조배정" },
         { href: "/e/spring-festival-2026", label: "참가자", note: "등록/티켓" },
       ]}
-      sectionLinks={[
-        { href: "#overview", label: "핵심 현황" },
-        { href: "#operations", label: "운영 액션" },
-        ...(isSuperAdmin ? [{ href: "#approvals", label: "가입 승인" }, { href: "#team-leads", label: "팀장 권한" }] : []),
-        ...(isTeamLead ? [{ href: "#refunds", label: "환불 승인" }] : []),
-        { href: "#team", label: "팀 운영" },
-      ]}
     >
+      <Card className="surface-soft rounded-2xl">
+        <CardContent className="flex flex-wrap gap-2 py-3">
+          {sectionTabs.map((tab) => (
+            <Button
+              key={tab.key}
+              type="button"
+              variant={activeSection === tab.key ? "default" : "secondary"}
+              className="h-9 rounded-full px-4"
+              onClick={() => setActiveSection(tab.key)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
+      {activeSection === "overview" ? (
       <Card id="overview" className="surface-soft rounded-2xl">
         <CardHeader>
           <CardTitle>핵심 현황</CardTitle>
@@ -706,7 +739,9 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
+      {activeSection === "operations" ? (
       <Card id="operations" className="surface-soft rounded-2xl">
         <CardHeader>
           <CardTitle>빠른 운영 액션</CardTitle>
@@ -778,8 +813,9 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
-      {isSuperAdmin ? (
+      {isSuperAdmin && activeSection === "approvals" ? (
         <Card id="approvals" className="surface-soft rounded-2xl">
           <CardHeader>
             <CardTitle>사역팀 가입 승인</CardTitle>
@@ -805,7 +841,7 @@ export default function AdminPage() {
         </Card>
       ) : null}
 
-      {isSuperAdmin ? (
+      {isSuperAdmin && activeSection === "team-leads" ? (
         <Card id="team-leads" className="surface-soft rounded-2xl">
           <CardHeader>
             <CardTitle>팀장 지정/해제</CardTitle>
@@ -846,7 +882,7 @@ export default function AdminPage() {
         </Card>
       ) : null}
 
-      {isTeamLead ? (
+      {isTeamLead && activeSection === "refunds" ? (
         <>
           <Card id="refunds" className="surface-soft rounded-2xl">
             <CardHeader>
@@ -910,6 +946,7 @@ export default function AdminPage() {
         </>
       ) : null}
 
+      {activeSection === "team" ? (
       <Card id="team" className="surface-soft rounded-2xl">
         <CardHeader>
           <CardTitle>팀 운영</CardTitle>
@@ -919,7 +956,7 @@ export default function AdminPage() {
             <div className="grid gap-1.5">
               <p className="text-xs text-muted-foreground">보기 범위</p>
               <Select value={viewScope} onValueChange={(value) => setViewScope(value as TeamScope)}>
-                <SelectTrigger disabled={isTeamScoped}>
+                <SelectTrigger>
                   <SelectValue placeholder="보기 범위 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -933,7 +970,7 @@ export default function AdminPage() {
             <div className="grid gap-1.5">
               <p className="text-xs text-muted-foreground">등록 범위</p>
               <Select value={createScope} onValueChange={(value) => setCreateScope(value as CreateScope)}>
-                <SelectTrigger disabled={isTeamScoped}>
+                <SelectTrigger>
                   <SelectValue placeholder="등록 범위 선택" />
                 </SelectTrigger>
                 <SelectContent>
@@ -978,6 +1015,7 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       <Card className="rounded-2xl border-dashed bg-secondary/70">
         <CardContent className="py-4 text-sm text-muted-foreground">{log}</CardContent>
