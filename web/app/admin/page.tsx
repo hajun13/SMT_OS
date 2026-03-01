@@ -23,13 +23,13 @@ type ReportSummary = {
 };
 type MeetingItem = { id: string; title: string; started_at: string };
 type ActionItem = { id: string; title: string; status: string; department: string | null; due_at?: string | null };
-type TeamDocument = { id: string; title: string; version: number };
+type TeamDocument = { id: string; title: string; version: number; kind?: string; content?: string | null };
 type PublicParticipantInfo = { title: string; content: string };
 type RoleKey = "student" | "teacher" | "evangelist" | "pastor" | "unknown";
 
 type TeamScope = "all" | "common" | "ops" | "planning" | "education" | "life" | "promo";
 type CreateScope = Exclude<TeamScope, "all">;
-type AdminSection = "overview" | "operations" | "team" | "approvals" | "team-leads" | "refunds";
+type AdminSection = "overview" | "operations" | "team" | "records" | "approvals" | "team-leads" | "refunds";
 
 const ROLE = "event_admin";
 const ORG_ID = "org-1";
@@ -119,14 +119,19 @@ function teamToScope(team: string | null): CreateScope {
   return "common";
 }
 
-function toDateTimeLocalValue(date: Date): string {
+function toDateInputValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const y = date.getFullYear();
   const m = pad(date.getMonth() + 1);
   const d = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-  return `${y}-${m}-${d}T${hh}:${mm}`;
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateLabel(value: string | null | undefined): string {
+  if (!value) return "날짜 없음";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return value;
+  return dt.toLocaleDateString("ko-KR");
 }
 
 export default function AdminPage() {
@@ -146,9 +151,9 @@ export default function AdminPage() {
   const [groupCount, setGroupCount] = useState("5");
   const [groupCapacity, setGroupCapacity] = useState("20");
   const [meetingTitle, setMeetingTitle] = useState("운영 점검 회의");
-  const [meetingAtLocal, setMeetingAtLocal] = useState(() => toDateTimeLocalValue(new Date()));
+  const [meetingDate, setMeetingDate] = useState(() => toDateInputValue(new Date()));
   const [actionTitle, setActionTitle] = useState("현장 안내 배너 점검");
-  const [actionDueAtLocal, setActionDueAtLocal] = useState("");
+  const [actionDueDate, setActionDueDate] = useState("");
   const [docTitle, setDocTitle] = useState("현장 운영 노트");
   const [docContent, setDocContent] = useState("입장 동선, 안전 공지, 담당자 연락처");
   const [noticeTitle, setNoticeTitle] = useState("행사 공지");
@@ -200,7 +205,7 @@ export default function AdminPage() {
       .filter((m) => readableScopes.includes(parseScopeFromTitle(m.title)))
       .map((m) => {
         const scope = parseScopeFromTitle(m.title);
-        return `${scopeLabel(scope)} · ${stripScopePrefix(m.title)}`;
+        return `${scopeLabel(scope)} · ${stripScopePrefix(m.title)} · ${formatDateLabel(m.started_at)}`;
       });
   }, [meetings, readableScopes]);
 
@@ -209,7 +214,7 @@ export default function AdminPage() {
       .filter((a) => readableScopes.includes(departmentToScope(a.department)))
       .map((a) => {
         const scope = departmentToScope(a.department);
-        const dueText = a.due_at ? new Date(a.due_at).toLocaleDateString("ko-KR") : "기한 없음";
+        const dueText = formatDateLabel(a.due_at);
         return `${scopeLabel(scope)} · ${a.title} · ${a.status} · ${dueText}`;
       });
   }, [actions, readableScopes]);
@@ -219,7 +224,8 @@ export default function AdminPage() {
       .filter((d) => readableScopes.includes(parseScopeFromTitle(d.title)))
       .map((d) => {
         const scope = parseScopeFromTitle(d.title);
-        return `${scopeLabel(scope)} · ${stripScopePrefix(d.title)} (v${d.version})`;
+        const preview = (d.content || "").trim();
+        return `${scopeLabel(scope)} · ${stripScopePrefix(d.title)} (v${d.version})${preview ? ` · ${preview}` : ""}`;
       });
   }, [docs, readableScopes]);
 
@@ -261,6 +267,7 @@ export default function AdminPage() {
       { key: "overview", label: "핵심 현황" },
       { key: "operations", label: "운영 액션" },
       { key: "team", label: "팀 운영" },
+      { key: "records", label: "팀 운영 상세" },
     ];
     if (isSuperAdmin) {
       tabs.push({ key: "approvals", label: "가입 승인" });
@@ -440,8 +447,8 @@ export default function AdminPage() {
 
   const addMeeting = () =>
     runTask(async () => {
-      const startedAt = meetingAtLocal ? new Date(meetingAtLocal) : new Date();
-      if (Number.isNaN(startedAt.getTime())) throw new Error("회의 날짜/시간을 다시 선택하세요.");
+      const startedAt = meetingDate ? new Date(`${meetingDate}T09:00:00`) : new Date();
+      if (Number.isNaN(startedAt.getTime())) throw new Error("회의 날짜를 다시 선택하세요.");
       await api("/api/team/meetings", {
         method: "POST",
         headers: roleHeader(ROLE),
@@ -464,7 +471,7 @@ export default function AdminPage() {
           org_id: ORG_ID,
           title: actionTitle,
           department: scopeToDepartment(createScope),
-          due_at: actionDueAtLocal ? new Date(actionDueAtLocal).toISOString() : null,
+          due_at: actionDueDate ? new Date(`${actionDueDate}T23:59:00`).toISOString() : null,
           status: "open",
           event_id: eventId || null,
         },
@@ -1027,8 +1034,9 @@ export default function AdminPage() {
 
           <div className="grid gap-2 sm:grid-cols-2">
             <Input value={meetingTitle} onChange={(e) => setMeetingTitle(e.target.value)} placeholder="회의 제목" />
-            <Input type="datetime-local" value={meetingAtLocal} onChange={(e) => setMeetingAtLocal(e.target.value)} />
+            <Input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
           </div>
+          <p className="text-xs text-muted-foreground">회의 시간은 선택하지 않고 날짜만 기록합니다.</p>
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <Button variant="secondary" onClick={addMeeting} disabled={busy} className="h-11 rounded-xl">
               <CalendarPlus className="mr-2 h-4 w-4" />회의 추가
@@ -1037,8 +1045,9 @@ export default function AdminPage() {
 
           <div className="grid gap-2 sm:grid-cols-2">
             <Input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="할 일" />
-            <Input type="datetime-local" value={actionDueAtLocal} onChange={(e) => setActionDueAtLocal(e.target.value)} />
+            <Input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} />
           </div>
+          <p className="text-xs text-muted-foreground">마감일은 선택사항입니다. 비워두면 기한 없음으로 저장됩니다.</p>
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <Button variant="secondary" onClick={addAction} disabled={busy} className="h-11 rounded-xl">
               할 일 추가
@@ -1088,6 +1097,77 @@ export default function AdminPage() {
               busy={busy}
               emptyText="운영 노트가 없습니다."
             />
+          </div>
+        </CardContent>
+      </Card>
+      ) : null}
+
+      {activeSection === "records" ? (
+      <Card id="records" className="surface-soft rounded-2xl">
+        <CardHeader>
+          <CardTitle>팀 운영 상세</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">회의</p>
+            {visibleMeetings.length ? (
+              visibleMeetings.map((m) => (
+                <div key={`record-meeting-${m.id}`} className="rounded-xl border border-border bg-white p-3">
+                  <p className="text-sm font-semibold">{stripScopePrefix(m.title)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {scopeLabel(parseScopeFromTitle(m.title))} · 날짜: {formatDateLabel(m.started_at)}
+                  </p>
+                  <div className="mt-2 flex justify-end">
+                    <Button type="button" variant="ghost" className="h-8 px-2 text-xs text-destructive" disabled={busy} onClick={() => removeMeeting(m.id)}>
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-white p-3 text-xs text-muted-foreground">회의 기록이 없습니다.</div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">할 일</p>
+            {visibleActions.length ? (
+              visibleActions.map((a) => (
+                <div key={`record-action-${a.id}`} className="rounded-xl border border-border bg-white p-3">
+                  <p className="text-sm font-semibold">{a.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {scopeLabel(departmentToScope(a.department))} · 상태: {a.status} · 마감: {formatDateLabel(a.due_at)}
+                  </p>
+                  <div className="mt-2 flex justify-end">
+                    <Button type="button" variant="ghost" className="h-8 px-2 text-xs text-destructive" disabled={busy} onClick={() => removeActionItem(a.id)}>
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-white p-3 text-xs text-muted-foreground">할 일 기록이 없습니다.</div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">운영 노트</p>
+            {visibleDocs.length ? (
+              visibleDocs.map((d) => (
+                <div key={`record-doc-${d.id}`} className="rounded-xl border border-border bg-white p-3">
+                  <p className="text-sm font-semibold">{stripScopePrefix(d.title)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{scopeLabel(parseScopeFromTitle(d.title))} · 버전 v{d.version}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/90">{d.content || "내용 없음"}</p>
+                  <div className="mt-2 flex justify-end">
+                    <Button type="button" variant="ghost" className="h-8 px-2 text-xs text-destructive" disabled={busy} onClick={() => removeDocument(d.id)}>
+                      삭제
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-white p-3 text-xs text-muted-foreground">운영 노트 기록이 없습니다.</div>
+            )}
           </div>
         </CardContent>
       </Card>
