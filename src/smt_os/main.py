@@ -45,7 +45,13 @@ from smt_os.interfaces.http.routes import Services, build_router
 from smt_os.interfaces.web.router import STATIC_DIR, router as web_router
 
 
-def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository, org_id: str = "org-1") -> None:
+def _seed_defaults(
+    events: EventRepository,
+    forms: RegistrationFormRepository,
+    org_id: str = "org-1",
+    *,
+    create_missing_events: bool = True,
+) -> None:
     default_events = [
         Event(
             id="f8f79bb4-f1c9-48ad-b8ba-8ec15189a2b1",
@@ -74,14 +80,18 @@ def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository, o
     form_usecase = UpsertRegistrationFormUseCase(events=events, forms=forms)
 
     for event in default_events:
-        if events.get_by_slug(event.slug) is None:
+        target_event = events.get_by_slug(event.slug)
+        if target_event is None and create_missing_events:
             events.save(event)
+            target_event = events.get_by_slug(event.slug) or event
+        if target_event is None:
+            continue
 
-        active = forms.get_active(event.id)
+        active = forms.get_active(target_event.id)
         if active is None:
             form_usecase.execute(
                 UpsertRegistrationFormCommand(
-                    event_id=event.id,
+                    event_id=target_event.id,
                     fields=[
                         FieldInput(key="grade", label="학년", type=FieldType.TEXT, required=True, sort_order=1),
                         FieldInput(
@@ -108,7 +118,7 @@ def _build_in_memory_services() -> Services:
     surveys = InMemorySurveyRepository()
     team = InMemoryTeamRepository()
 
-    _seed_defaults(events, forms, org_id="org-1")
+    _seed_defaults(events, forms, org_id="org-1", create_missing_events=True)
 
     return Services(
         create_event=CreateEventUseCase(events),
@@ -203,7 +213,7 @@ def _build_postgres_services(db_url: str) -> Services:
             )
             row = cur.fetchone()
     if row is not None:
-        _seed_defaults(events, forms, org_id=str(row["id"]))
+        _seed_defaults(events, forms, org_id=str(row["id"]), create_missing_events=False)
 
     class _NoopAssignmentRepo:
         def replace_meal_slots(self, event_id: str, slots: list[object]) -> None:

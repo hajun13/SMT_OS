@@ -12,21 +12,28 @@ import { BRAND_KO, BRAND_NAME } from "@/lib/brand";
 
 export default function HomePage() {
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const token = getToken();
-      if (!token) return;
+      if (!token) {
+        setAuthResolved(true);
+        return;
+      }
       try {
         const me = await fetchMe();
         setUser(me);
       } catch {
         setUser(null);
+      } finally {
+        setAuthResolved(true);
       }
     })();
   }, []);
 
   const menus = useMemo(() => {
+    if (!authResolved) return [];
     if (!user) {
       return [
         {
@@ -80,7 +87,7 @@ export default function HomePage() {
         icon: UserRound,
       },
     ];
-  }, [user]);
+  }, [user, authResolved]);
 
   const nav = user
     ? [{ href: "/login", label: "다시 로그인" }]
@@ -92,13 +99,20 @@ export default function HomePage() {
         <p className="text-xs font-medium text-muted-foreground">{BRAND_KO}</p>
         <h1 className="mt-1 text-xl font-semibold">DoDream 운영 콘솔</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {!user
+          {!authResolved
+            ? "권한을 확인하고 있습니다."
+            : !user
             ? "비회원은 참가자 콘솔에서 바로 신청할 수 있습니다."
             : "로그인 권한에 맞는 콘솔만 표시됩니다."}
         </p>
       </section>
 
       <section className="grid gap-3">
+        {!authResolved ? (
+          <Card className="surface-soft rounded-2xl">
+            <CardContent className="py-6 text-sm text-muted-foreground">콘솔 권한을 불러오는 중...</CardContent>
+          </Card>
+        ) : null}
         {menus.map((menu) => {
           const Icon = menu.icon;
           return (
@@ -125,7 +139,7 @@ export default function HomePage() {
         })}
       </section>
 
-      {!user ? (
+      {authResolved && !user ? (
         <section className="mt-4 space-y-3">
           <Card className="surface-soft rounded-2xl">
             <CardHeader className="pb-2">
