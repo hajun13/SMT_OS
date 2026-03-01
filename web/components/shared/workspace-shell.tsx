@@ -4,12 +4,6 @@ import type { ReactNode } from "react";
 import { BRAND_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-type NavItem = {
-  href: string;
-  label: string;
-  note?: string;
-};
-
 type SectionLink = {
   href: string;
   label: string;
@@ -18,13 +12,12 @@ type SectionLink = {
 type WorkspaceShellProps = {
   title: string;
   subtitle: string;
-  navItems: NavItem[];
   sectionLinks?: SectionLink[];
   children: ReactNode;
   className?: string;
 };
 
-export function WorkspaceShell({ title, subtitle, navItems, sectionLinks = [], children, className }: WorkspaceShellProps) {
+export function WorkspaceShell({ title, subtitle, sectionLinks = [], children, className }: WorkspaceShellProps) {
   return (
     <main className={cn("app-shell", className)}>
       <header className="surface-soft mb-4 rounded-2xl p-3">
@@ -37,18 +30,6 @@ export function WorkspaceShell({ title, subtitle, navItems, sectionLinks = [], c
           <p className="text-base font-semibold">{title}</p>
           <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
         </div>
-
-        <nav className="mt-3 grid gap-2 sm:grid-cols-3">
-          {navItems.map((item) => (
-            <Link
-              key={`${item.href}-${item.label}`}
-              href={item.href}
-              className="rounded-xl border border-border bg-white px-3 py-2 text-left"
-            >
-              <p className="text-sm font-medium">{item.label}</p>
-            </Link>
-          ))}
-        </nav>
 
         {sectionLinks.length > 0 ? (
           <nav className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">

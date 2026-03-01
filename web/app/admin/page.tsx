@@ -633,12 +633,6 @@ export default function AdminPage() {
     <WorkspaceShell
       title="관리자 콘솔"
       subtitle="준비·운영·리포트를 한 번에"
-      navItems={[
-        { href: "/admin", label: "관리자", note: "운영 관리" },
-        { href: "/field", label: "현장", note: "체크인 실행" },
-        { href: "/leader", label: "지도교사", note: "등록/납부/조배정" },
-        { href: "/e/spring-festival-2026", label: "참가자", note: "등록/티켓" },
-      ]}
     >
       <Card className="surface-soft rounded-2xl">
         <CardContent className="flex flex-wrap gap-2 py-3">

@@ -236,11 +236,6 @@ export default function LeaderPage() {
     <WorkspaceShell
       title="지도교사 콘솔"
       subtitle="교회 학생 등록 정보와 납부·환불 관리"
-      navItems={[
-        { href: "/leader", label: "지도교사", note: "학생정보/납부/환불" },
-        { href: "/admin", label: "관리자", note: "승인/거절" },
-        { href: "/field", label: "현장", note: "체크인" },
-      ]}
       sectionLinks={[
         { href: "#notice", label: "행사 공지" },
         { href: "#church-summary", label: "교회별 납부" },

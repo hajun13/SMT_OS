@@ -144,12 +144,6 @@ export default function FieldPage() {
     <WorkspaceShell
       title="현장 콘솔"
       subtitle="체크인을 빠르고 정확하게"
-      navItems={[
-        { href: "/field", label: "현장", note: "체크인 실행" },
-        { href: "/admin", label: "관리자", note: "운영 관리" },
-        { href: "/leader", label: "지도교사", note: "등록/납부/조배정" },
-        { href: "/e/spring-festival-2026", label: "참가자", note: "등록/티켓" },
-      ]}
       sectionLinks={[{ href: "#checkin", label: "체크인" }]}
     >
       <Card className="surface-soft rounded-2xl">
