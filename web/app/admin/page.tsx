@@ -672,18 +672,20 @@ export default function AdminPage() {
       subtitle="준비·운영·리포트를 한 번에"
     >
       <Card className="surface-soft rounded-2xl">
-        <CardContent className="flex flex-wrap gap-2 py-3">
-          {sectionTabs.map((tab) => (
-            <Button
-              key={tab.key}
-              type="button"
-              variant={activeSection === tab.key ? "default" : "secondary"}
-              className="h-9 rounded-full px-4"
-              onClick={() => setActiveSection(tab.key)}
-            >
-              {tab.label}
-            </Button>
-          ))}
+        <CardContent className="py-3">
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1">
+            {sectionTabs.map((tab) => (
+              <Button
+                key={tab.key}
+                type="button"
+                variant={activeSection === tab.key ? "default" : "secondary"}
+                className="h-9 shrink-0 rounded-lg px-4"
+                onClick={() => setActiveSection(tab.key)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -693,36 +695,6 @@ export default function AdminPage() {
           <CardTitle>핵심 현황</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-xl border border-border bg-white p-3">
-            <p className="text-xs text-muted-foreground">내 프로필 사진</p>
-            <div className="mt-2 flex items-center gap-3">
-              {currentUser?.profile_image_url ? (
-                <img
-                  src={currentUser.profile_image_url}
-                  alt="내 프로필"
-                  className="h-12 w-12 rounded-full border border-border object-cover"
-                />
-              ) : (
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-secondary text-xs text-muted-foreground">
-                  없음
-                </div>
-              )}
-              <label className="inline-flex h-10 cursor-pointer items-center rounded-lg border border-border bg-white px-3 text-sm">
-                사진 업로드
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    void uploadMyProfileImage(file);
-                    e.currentTarget.value = "";
-                  }}
-                />
-              </label>
-            </div>
-          </div>
-
           <Select value={eventId} onValueChange={setEventId}>
             <SelectTrigger>
               <SelectValue placeholder="행사를 선택하세요" />
@@ -767,6 +739,36 @@ export default function AdminPage() {
             <Button onClick={refreshAll} disabled={busy} className="h-11 flex-1 rounded-xl">
               최신으로 새로고침
             </Button>
+          </div>
+
+          <div className="rounded-xl border border-border bg-white p-3">
+            <p className="text-xs text-muted-foreground">내 프로필 사진</p>
+            <div className="mt-2 flex items-center gap-3">
+              {currentUser?.profile_image_url ? (
+                <img
+                  src={currentUser.profile_image_url}
+                  alt="내 프로필"
+                  className="h-12 w-12 rounded-full border border-border object-cover"
+                />
+              ) : (
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-secondary text-xs text-muted-foreground">
+                  없음
+                </div>
+              )}
+              <label className="inline-flex h-10 cursor-pointer items-center rounded-lg border border-border bg-white px-3 text-sm">
+                사진 업로드
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    void uploadMyProfileImage(file);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </div>
         </CardContent>
       </Card>
