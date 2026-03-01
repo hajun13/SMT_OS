@@ -64,6 +64,26 @@ h5 {
   @apply text-sm text-muted-foreground;
 }
 
+.date-input-native {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 44px;
+  line-height: 1.2;
+}
+
+.date-input-native::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+.date-input-native::-webkit-datetime-edit {
+  padding: 0;
+}
+
+.date-input-native::-webkit-calendar-picker-indicator {
+  margin: 0;
+  opacity: 0.8;
+}
+
 @media (min-width: 1024px) {
   .app-shell {
     @apply pb-10;
