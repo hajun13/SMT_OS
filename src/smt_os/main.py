@@ -45,11 +45,11 @@ from smt_os.interfaces.http.routes import Services, build_router
 from smt_os.interfaces.web.router import STATIC_DIR, router as web_router
 
 
-def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository) -> None:
+def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository, org_id: str = "org-1") -> None:
     default_events = [
         Event(
             id="f8f79bb4-f1c9-48ad-b8ba-8ec15189a2b1",
-            org_id="org-1",
+            org_id=org_id,
             slug="spring-festival-2026",
             title="춘계 페스티벌 2026",
             template=EventTemplate.DAY_EVENT,
@@ -60,7 +60,7 @@ def _seed_defaults(events: EventRepository, forms: RegistrationFormRepository) -
         ),
         Event(
             id="7bc5fcb4-bd44-4a28-a8fe-faf159fbd6af",
-            org_id="org-1",
+            org_id=org_id,
             slug="summer-camp-2026",
             title="여름 캠프 2026",
             template=EventTemplate.CAMP,
@@ -108,7 +108,7 @@ def _build_in_memory_services() -> Services:
     surveys = InMemorySurveyRepository()
     team = InMemoryTeamRepository()
 
-    _seed_defaults(events, forms)
+    _seed_defaults(events, forms, org_id="org-1")
 
     return Services(
         create_event=CreateEventUseCase(events),
@@ -184,7 +184,26 @@ def _build_postgres_services(db_url: str) -> Services:
     tickets = PostgresTicketRepository(session_factory)
     checkins = PostgresCheckinRepository(session_factory)
     forms = PostgresRegistrationFormRepository(session_factory)
-    _seed_defaults(events, forms)
+    with session_factory.session() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                with inserted_org as (
+                  insert into orgs(name)
+                  values ('서중한합회 학생사역팀')
+                  on conflict do nothing
+                  returning id
+                ), target_org as (
+                  select id from inserted_org
+                  union all
+                  select id from orgs where name = '서중한합회 학생사역팀' limit 1
+                )
+                select id from target_org limit 1
+                """
+            )
+            row = cur.fetchone()
+    if row is not None:
+        _seed_defaults(events, forms, org_id=str(row["id"]))
 
     class _NoopAssignmentRepo:
         def replace_meal_slots(self, event_id: str, slots: list[object]) -> None:
